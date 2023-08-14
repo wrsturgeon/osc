@@ -1,5 +1,5 @@
 # OSC
-## Open Sound Control ([spec](https://opensoundcontrol.stanford.edu/spec-1_0.html))
+### Open Sound Control
 
 ## Example
 
