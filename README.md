@@ -1,11 +1,10 @@
 # OSC
-## Open Sound Control (Specification v1.0 by Matt Wright & Adrian Freed)
+## Open Sound Control ([spec](https://opensoundcontrol.stanford.edu/spec-1_0.html))
 
 ## Example
 
 An example from the [official OSC spec](https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples) that's tested in CI:
 ```rust
-/// Create a bundle in one line, type inference and all:
 let msg = (1000, -1, "hello", 1.234, 5.678).into_osc("foo");
 
 /// The bundle is an iterator that never copies into a temporary array.
