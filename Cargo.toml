@@ -1,0 +1,33 @@
+[package]
+name = "osc"
+description = "Full OSC implementation without heap allocation or a standard library."
+version = "0.1.0"
+edition = "2021"
+authors = ["Will Sturgeon <willstrgn@gmail.com>"]
+license = "MPL-2.0"
+repository = "https://github.com/wrsturgeon/osc"
+readme = "README.md"
+build = "build.rs"
+keywords = ["osc", "sound", "control", "midi", "communication"]
+categories = [
+  "no-std::no-alloc",
+  "no-std",
+  "network-programming",
+  "encoding",
+  "multimedia",
+]
+
+[dependencies]
+# none
+
+# Optional dependencies:
+# quickcheck = { version = "1.0.3", optional = true }
+
+[dev-dependencies]
+# quickcheck = "1.0.3"
+
+[features]
+default = ["alloc", "nonstandard-types"]
+alloc = []
+nonstandard-types = []
+# quickcheck = ["dep:quickcheck"]
