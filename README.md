@@ -1,5 +1,5 @@
 # OSC
-### Open Sound Control
+## Open Sound Control
 
 ## Example
 
