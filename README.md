@@ -26,6 +26,13 @@ assert!(msg.eq(b"\
 /// Et voila ! Everything just works.
 ```
 
+## `no_std`
+
+This library is fully `no_std` and doesn't require `alloc`: just disable default features for this crate.
+
+If you're planning on receiving OSC data whose types you can't know beforehand,
+you might want to enable `alloc` to read into expansible buffers.
+
 ## Why another OSC library?
 
 Practice, and I wanted a library that's easy for me to understand with a different API.
