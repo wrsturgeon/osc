@@ -1,7 +1,6 @@
 # OSC
 ## Open Sound Control
-#### OSC v1.0 by Matt Wright & Adrian Freed
-#### Rust implementation by Will Sturgeon <willstrgn@gmail.com>
+### Specification v1.0 by Matt Wright & Adrian Freed
 
 ## Example
 
