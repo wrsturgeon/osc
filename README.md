@@ -1,6 +1,5 @@
 # OSC
-## Open Sound Control
-### Specification v1.0 by Matt Wright & Adrian Freed
+## Open Sound Control (Specification v1.0 by Matt Wright & Adrian Freed)
 
 ## Example
 
