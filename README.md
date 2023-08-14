@@ -1,11 +1,11 @@
 # OSC
 ## Open Sound Control
-### OSC v1.0 by Matt Wright & Adrian Freed
-### Rust implementation by Will Sturgeon <willstrgn@gmail.com>
+#### OSC v1.0 by Matt Wright & Adrian Freed
+#### Rust implementation by Will Sturgeon <willstrgn@gmail.com>
 
 ## Example
 
-An example from the (official OSC spec)[https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples] that's tested in CI:
+An example from the [official OSC spec](https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples) that's tested in CI:
 ```rust
 /// Create a bundle in one line, type inference and all:
 let msg = (1000, -1, "hello", 1.234, 5.678).into_osc("foo");
