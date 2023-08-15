@@ -4,6 +4,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+//! Integer, float, string, or blob.
+
 use crate::{Batch, Batched, IntoOsc};
 use core::iter::{Chain, Copied};
 
@@ -77,10 +79,10 @@ impl From<i32> for Integer {
         Self(value.to_be_bytes())
     }
 }
-impl Into<i32> for Integer {
+impl From<Integer> for i32 {
     #[inline(always)]
-    fn into(self) -> i32 {
-        i32::from_be_bytes(self.0)
+    fn from(value: Integer) -> Self {
+        i32::from_be_bytes(value.0)
     }
 }
 
@@ -90,10 +92,10 @@ impl From<f32> for Float {
         Self(value.to_be_bytes())
     }
 }
-impl Into<f32> for Float {
+impl From<Float> for f32 {
     #[inline(always)]
-    fn into(self) -> f32 {
-        f32::from_be_bytes(self.0)
+    fn from(value: Float) -> Self {
+        f32::from_be_bytes(value.0)
     }
 }
 
@@ -103,10 +105,10 @@ impl<'s> From<&'s str> for String<'s> {
         Self(value)
     }
 }
-impl<'s> Into<&'s str> for String<'s> {
+impl<'s> From<String<'s>> for &'s str {
     #[inline(always)]
-    fn into(self) -> &'s str {
-        self.0
+    fn from(value: String<'s>) -> Self {
+        value.0
     }
 }
 
@@ -116,10 +118,10 @@ impl<'b> From<&'b [u8]> for Blob<'b> {
         Self(value)
     }
 }
-impl<'b> Into<&'b [u8]> for Blob<'b> {
+impl<'b> From<Blob<'b>> for &'b [u8] {
     #[inline(always)]
-    fn into(self) -> &'b [u8] {
-        self.0
+    fn from(value: Blob<'b>) -> Self {
+        value.0
     }
 }
 
@@ -163,7 +165,9 @@ impl<'b> IntoIterator for Blob<'b> {
 
 //////////////// Types that one-to-one map to atomic OSC types
 
+/// Whitelists.
 mod sealed {
+    /// Whitelist. Otherwise useless.
     pub trait IntoAtomic {}
     impl IntoAtomic for i32 {}
     impl IntoAtomic for f32 {}
@@ -172,6 +176,7 @@ mod sealed {
 }
 
 /// Rust types that map 1-to-1 to atomic OSC types.
+#[allow(clippy::module_name_repetitions)]
 pub trait IntoAtomic: sealed::IntoAtomic + IntoOsc + Sized {
     /// The OSC type that directly corresponds to this Rust type.
     type AsAtomic: Atomic<AsRust = Self>;

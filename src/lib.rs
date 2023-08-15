@@ -73,6 +73,7 @@
     clippy::redundant_pub_crate,
     clippy::ref_patterns,
     clippy::separated_literal_suffix,
+    clippy::single_char_lifetime_names,
     clippy::string_add,
     clippy::use_self,
     clippy::wildcard_imports

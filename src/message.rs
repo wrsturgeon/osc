@@ -12,12 +12,16 @@ use core::iter::{Chain, Once};
 /// Typed data to a specified address.
 #[repr(transparent)]
 #[derive(Clone, Debug)]
+#[allow(clippy::type_complexity)]
 pub struct Message<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple>(
     Chain<Chain<Batched<Address<'a, A>>, Batched<Chain<Once<u8>, T::TypeTagIter>>>, T::Chained>,
 );
 
 impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Message<'a, A, T> {
     /// Prefer `.into_osc()`, but if you already have OSC data, this is fine.
+    /// # Errors
+    /// If the address is invalid (according to the OSC spec).
+    #[inline]
     pub fn new<I: IntoAddress<'a, IntoIter = A>>(address: I, data: T) -> Result<Self, AddressErr> {
         Ok(Self(
             address

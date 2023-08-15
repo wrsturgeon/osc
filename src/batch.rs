@@ -8,10 +8,13 @@
 
 use core::mem::MaybeUninit;
 
+/// Three-byte buffer.
 #[repr(packed)]
 #[derive(Clone, Copy, Debug)]
 struct Cache {
+    /// Three-byte buffer.
     buffer: MaybeUninit<[u8; 3]>,
+    /// Index from 0 to 3.
     index: u8,
 }
 
@@ -28,6 +31,7 @@ impl Default for Cache {
 }
 
 impl Cache {
+    /// Initialize a cache by pulling four bytes, caching the last three and returning the first.
     fn new<I: Iterator<Item = u8>>(iter: &mut I) -> Self {
         Self {
             buffer: MaybeUninit::new([
@@ -40,14 +44,17 @@ impl Cache {
     }
 }
 
+#[allow(clippy::copy_iterator)]
 impl Iterator for Cache {
     type Item = u8;
     #[inline]
-    #[allow(unsafe_code)]
+    #[allow(clippy::arithmetic_side_effects, unsafe_code)]
     fn next(&mut self) -> Option<Self::Item> {
         (self.index < 3).then(|| {
             let i = usize::from(self.index);
             self.index += 1;
+            // SAFETY:
+            // Just checked above. If `3` ever changes, revisit.
             unsafe { *self.buffer.assume_init().get_unchecked(i) }
         })
     }
@@ -56,13 +63,16 @@ impl Iterator for Cache {
 /// Align an iterator to 4-byte batches by padding with zeros at the end.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Batched<I: Iterator<Item = u8>> {
+    /// Iterator over individual bytes.
     iter: I,
+    /// 4-byte cache.
     cache: Cache,
 }
 
 impl<I: Iterator<Item = u8>> Batched<I> {
     /// Batch an iterator into four-byte chunks, padding the end with zeros.
     /// Note that this is a lazy operation.
+    #[inline]
     pub fn new(iter: I) -> Self {
         Self {
             iter,
@@ -70,6 +80,8 @@ impl<I: Iterator<Item = u8>> Batched<I> {
         }
     }
     /// Un-batch into the original iterator
+    #[inline]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn unbatch(self) -> I {
         self.iter
     }

@@ -4,6 +4,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+//! Format a Rust type as an OSC message.
+
 use crate::{
     tuple::Tuple, AddressErr, Blob, Float, Integer, IntoAddress, IntoAtomic, Message, String,
 };
@@ -13,6 +15,8 @@ pub trait IntoOsc {
     /// OSC equivalent of this Rust type.
     type AsOsc: Tuple;
     /// Format a Rust type as an OSC message.
+    /// # Errors
+    /// If the address is invalid (according to the OSC spec).
     fn into_osc<'a, I: IntoAddress<'a>>(
         self,
         address: I,
@@ -91,6 +95,7 @@ impl IntoOsc for () {
     }
 }
 
+/// Implement `IntoOsc` for a tuple of types, each of which implement `IntoAtomic`.
 macro_rules! impl_for_tuple {
     ($($id:ident),+) => {
         impl<$($id: IntoAtomic),+> IntoOsc for ($($id),+,) {

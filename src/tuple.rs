@@ -34,6 +34,7 @@ impl Tuple for () {
     }
 }
 
+/// Implement `Tuple` for a tuple of types, each of which implement `Atomic`.
 macro_rules! impl_tuple {
     ($n:expr, $chain:ty, |$self:ident| $chain_expr:expr, $($id:ident),+,) => {
         impl<$($id: Atomic),+> Tuple for ($($id),+,) {
