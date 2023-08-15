@@ -7,7 +7,8 @@
 //! Format a Rust type as an OSC message.
 
 use crate::{
-    tuple::Tuple, AddressErr, Blob, Float, Integer, IntoAddress, IntoAtomic, Message, String,
+    tuple::Tuple, AddressErr, Blob, DynamicBlob, DynamicString, Float, Integer, IntoAddress,
+    IntoAtomic, Message, String,
 };
 
 /// Format a Rust type as an OSC message.
@@ -124,3 +125,34 @@ impl_for_tuple!(A, B, C, D, E);
 impl_for_tuple!(A, B, C, D, E, F);
 impl_for_tuple!(A, B, C, D, E, F, G);
 impl_for_tuple!(A, B, C, D, E, F, G, H);
+
+#[cfg(any(test, feature = "alloc"))]
+impl IntoOsc for alloc::string::String {
+    type AsOsc = (DynamicString,);
+    #[inline(always)]
+    fn into_osc<'a, I: IntoAddress<'a>>(
+        self,
+        address: I,
+    ) -> Result<Message<'a, I::IntoIter, Self::AsOsc>, AddressErr>
+    where
+        I::IntoIter: Clone,
+    {
+        Message::new(address, (self.into_atomic(),))
+    }
+}
+
+#[cfg(any(test, feature = "alloc"))]
+#[allow(unused_qualifications)]
+impl IntoOsc for alloc::vec::Vec<u8> {
+    type AsOsc = (DynamicBlob,);
+    #[inline(always)]
+    fn into_osc<'a, I: IntoAddress<'a>>(
+        self,
+        address: I,
+    ) -> Result<Message<'a, I::IntoIter, Self::AsOsc>, AddressErr>
+    where
+        I::IntoIter: Clone,
+    {
+        Message::new(address, (self.into_atomic(),))
+    }
+}

@@ -79,25 +79,32 @@
     clippy::wildcard_imports
 )]
 
-// #[cfg(any(test, feature = "alloc"))]
-// extern crate alloc;
+#[cfg(any(test, feature = "alloc"))]
+extern crate alloc;
 
+mod address;
 mod atomic;
 mod batch;
-// mod bundle;
-mod address;
 mod into_osc;
 mod message;
 mod tuple;
+
+#[cfg(any(test, feature = "alloc"))]
+mod dynamic;
 
 pub use {
     address::{Address, AddressErr, IntoAddress},
     atomic::{Atomic, Blob, Float, Integer, IntoAtomic, String},
     batch::{Batch, Batched},
-    // bundle::Bundle,
     into_osc::IntoOsc,
     message::Message,
     tuple::Tuple,
+};
+
+#[cfg(any(test, feature = "alloc"))]
+pub use {
+    atomic::{DynamicBlob, DynamicString},
+    dynamic::Dynamic,
 };
 
 #[cfg(test)]
