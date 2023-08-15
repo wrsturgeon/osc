@@ -161,15 +161,6 @@ impl<'b> IntoIterator for Blob<'b> {
     }
 }
 
-//////////////// String utility
-
-impl String<'_> {
-    /// Not necessary to add `/` at the beginning and end, so make sure they're not there.
-    pub fn is_address(&self) -> bool {
-        !(self.0.starts_with('/') || self.0.ends_with('/'))
-    }
-}
-
 //////////////// Types that one-to-one map to atomic OSC types
 
 mod sealed {

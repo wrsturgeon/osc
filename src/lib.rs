@@ -83,13 +83,17 @@
 
 mod atomic;
 mod batch;
+// mod bundle;
+mod address;
 mod into_osc;
 mod message;
 mod tuple;
 
 pub use {
+    address::{Address, AddressErr, IntoAddress},
     atomic::{Atomic, Blob, Float, Integer, IntoAtomic, String},
     batch::{Batch, Batched},
+    // bundle::Bundle,
     into_osc::IntoOsc,
     message::Message,
     tuple::Tuple,
