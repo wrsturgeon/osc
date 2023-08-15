@@ -7,14 +7,17 @@
 //! Typed data to a specified address.
 
 use crate::{address::Address, tuple::Tuple, AddressErr, Batch, Batched, IntoAddress};
-use core::iter::{Chain, Once};
+use core::iter::{once, Chain, Once};
 
 /// Typed data to a specified address.
 #[repr(transparent)]
 #[derive(Clone, Debug)]
 #[allow(clippy::type_complexity)]
 pub struct Message<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple>(
-    Chain<Chain<Batched<Address<'a, A>>, Batched<Chain<Once<u8>, T::TypeTagIter>>>, T::Chained>,
+    Chain<
+        Chain<Batched<Address<'a, A>>, Batched<Chain<Chain<Once<u8>, T::TypeTagIter>, Once<u8>>>>,
+        T::Chained,
+    >,
 );
 
 impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Message<'a, A, T> {
@@ -27,7 +30,7 @@ impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Message<'a, A, T> {
             address
                 .into_address()?
                 .batch()
-                .chain(T::type_tag())
+                .chain(once(b',').chain(data.type_tag()).chain(once(b'\0')).batch())
                 .chain(data.chain()),
         ))
     }

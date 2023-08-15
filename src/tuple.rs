@@ -6,7 +6,7 @@
 
 //! Typed collection of data.
 
-use crate::{Atomic, Batch, Batched};
+use crate::Atomic;
 use core::iter::Chain;
 
 /// Typed collection of data.
@@ -14,7 +14,7 @@ pub trait Tuple {
     /// Iterator over characters in the formatted type tag.
     type TypeTagIter: Iterator<Item = u8>;
     /// Format an OSC type tag for this collection of types.
-    fn type_tag() -> Batched<Chain<core::iter::Once<u8>, Self::TypeTagIter>>;
+    fn type_tag(&self) -> Self::TypeTagIter;
     /// Chained iterators over each piece of data in this tuple.
     type Chained: Iterator<Item = u8>;
     /// Chain iterators over each piece of data in this tuple.
@@ -23,9 +23,9 @@ pub trait Tuple {
 
 impl Tuple for () {
     type TypeTagIter = core::iter::Empty<u8>;
-    #[inline]
-    fn type_tag() -> Batched<Chain<core::iter::Once<u8>, Self::TypeTagIter>> {
-        core::iter::once(b',').chain(core::iter::empty()).batch()
+    #[inline(always)]
+    fn type_tag(&self) -> Self::TypeTagIter {
+        core::iter::empty()
     }
     type Chained = core::iter::Empty<u8>;
     #[inline(always)]
@@ -39,9 +39,11 @@ macro_rules! impl_tuple {
     ($n:expr, $chain:ty, |$self:ident| $chain_expr:expr, $($id:ident),+,) => {
         impl<$($id: Atomic),+> Tuple for ($($id),+,) {
             type TypeTagIter = core::array::IntoIter<u8, $n>;
-            #[inline]
-            fn type_tag() -> Batched<Chain<core::iter::Once<u8>, Self::TypeTagIter>> {
-                core::iter::once(b',').chain([$($id::TYPE_TAG),+]).batch()
+            #[inline(always)]
+            fn type_tag(&self) -> Self::TypeTagIter {
+                #[allow(non_snake_case)]
+                let &($(ref $id),+,) = self;
+                [$($id.type_tag()),+].into_iter()
             }
             type Chained = $chain;
             #[inline]

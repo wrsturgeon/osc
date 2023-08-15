@@ -6,7 +6,7 @@
 
 #![allow(clippy::default_numeric_fallback, clippy::unwrap_used)]
 
-use crate::{Blob, Float, Integer, IntoAtomic, IntoOsc, String, Tuple};
+use crate::{IntoAtomic, IntoOsc, Tuple};
 
 /// Examples from <https://opensoundcontrol.stanford.edu/spec-1_0-examples.html>.
 mod from_the_spec {
@@ -24,25 +24,33 @@ mod from_the_spec {
 
     #[test]
     fn type_tag_f() {
-        assert!(<() as Tuple>::type_tag().eq(",\0\0\0".bytes()));
+        assert!(().type_tag().eq(core::iter::empty()));
     }
 
     #[test]
     fn type_tag_iisfff() {
-        assert!(
-            <(Integer, Integer, String<'_>, Float, Float, Float) as Tuple>::type_tag()
-                .eq(",iisfff\0".bytes())
-        );
+        assert!((
+            0.into_atomic(),
+            0.into_atomic(),
+            "".into_atomic(),
+            0.0.into_atomic(),
+            0.0.into_atomic(),
+            0.0.into_atomic(),
+        )
+            .type_tag()
+            .eq("iisfff".bytes()));
     }
 
     #[test]
     fn type_tag_none() {
-        assert!(<(Float,) as Tuple>::type_tag().eq(",f\0\0".bytes()));
+        assert!((0.0.into_atomic(),).type_tag().eq("f".bytes()));
     }
 
     #[test]
     fn type_tag_ibb() {
-        assert!(<(Integer, Blob<'_>, Blob<'_>) as Tuple>::type_tag().eq(",ibb".bytes()));
+        assert!((0.into_atomic(), (&[]).into_atomic(), (&[]).into_atomic())
+            .type_tag()
+            .eq("ibb".bytes()));
     }
 
     #[test]

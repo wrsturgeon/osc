@@ -16,7 +16,7 @@ pub trait Atomic:
     From<Self::AsRust> + Into<Self::AsRust> + IntoIterator<Item = u8, IntoIter = Batched<Self::Iter>>
 {
     /// OSC type tag: a single character denoting this type.
-    const TYPE_TAG: u8;
+    fn type_tag(&self) -> u8;
     /// Rust representation of this OSC type (e.g. `Integer` -> `i32`).
     type AsRust: IntoAtomic<AsAtomic = Self, AsOsc = (Self,)>;
     /// Convert from OSC to a value Rust can work with.
@@ -61,42 +61,67 @@ pub struct DynamicBlob(alloc::vec::Vec<u8>);
 //////////////// Trait implementations
 
 impl Atomic for Integer {
-    const TYPE_TAG: u8 = b'i';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b'i'
+    }
     type AsRust = i32;
     type Iter = core::array::IntoIter<u8, 4>;
 }
 impl Atomic for Float {
-    const TYPE_TAG: u8 = b'f';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b'f'
+    }
     type AsRust = f32;
     type Iter = core::array::IntoIter<u8, 4>;
 }
 impl<'s> Atomic for String<'s> {
-    const TYPE_TAG: u8 = b's';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b's'
+    }
     type AsRust = &'s str;
     type Iter = Chain<core::str::Bytes<'s>, Once<u8>>;
 }
 impl<'b> Atomic for Blob<'b> {
-    const TYPE_TAG: u8 = b'b';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b'b'
+    }
     type AsRust = &'b [u8];
     type Iter = Copied<core::slice::Iter<'b, u8>>;
 }
 
-// TODO:
-// #[cfg(any(test, feature = "alloc"))]
-// impl Atomic for Dynamic {
-//     const TYPE_TAG: u8 = b's';
-//     type AsRust = alloc::string::String;
-//     type Iter = Chain<alloc::vec::IntoIter<u8>, Once<u8>>;
-// }
+#[cfg(any(test, feature = "alloc"))]
+impl Atomic for Dynamic {
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        match self {
+            &Dynamic::Integer(ref i) => i.type_tag(),
+            &Dynamic::Float(ref f) => f.type_tag(),
+            &Dynamic::String(ref s) => s.type_tag(),
+            &Dynamic::Blob(ref b) => b.type_tag(),
+        }
+    }
+    type AsRust = Dynamic;
+    type Iter = alloc::vec::IntoIter<u8>;
+}
 #[cfg(any(test, feature = "alloc"))]
 impl Atomic for DynamicString {
-    const TYPE_TAG: u8 = b's';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b's'
+    }
     type AsRust = alloc::string::String;
     type Iter = Chain<alloc::vec::IntoIter<u8>, Once<u8>>;
 }
 #[cfg(any(test, feature = "alloc"))]
 impl Atomic for DynamicBlob {
-    const TYPE_TAG: u8 = b'b';
+    #[inline(always)]
+    fn type_tag(&self) -> u8 {
+        b'b'
+    }
     #[allow(unused_qualifications)]
     type AsRust = alloc::vec::Vec<u8>;
     type Iter = alloc::vec::IntoIter<u8>;
@@ -233,6 +258,23 @@ impl IntoIterator for Blob<'_> {
 }
 
 #[cfg(any(test, feature = "alloc"))]
+impl IntoIterator for Dynamic {
+    type IntoIter = Batched<<Self as Atomic>::Iter>;
+    type Item = u8;
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        #[allow(unused_qualifications)]
+        let v: alloc::vec::Vec<_> = match self {
+            Dynamic::Integer(i) => i.into_iter().collect(),
+            Dynamic::Float(f) => f.into_iter().collect(),
+            Dynamic::String(s) => s.into_iter().collect(),
+            Dynamic::Blob(b) => b.into_iter().collect(),
+        };
+        v.into_iter().batch()
+    }
+}
+
+#[cfg(any(test, feature = "alloc"))]
 impl IntoIterator for DynamicString {
     type IntoIter = Batched<<Self as Atomic>::Iter>;
     type Item = u8;
@@ -263,6 +305,8 @@ mod sealed {
     impl IntoAtomic for &str {}
     impl IntoAtomic for &[u8] {}
 
+    #[cfg(any(test, feature = "alloc"))]
+    impl IntoAtomic for crate::Dynamic {}
     #[allow(unused_qualifications)]
     #[cfg(any(test, feature = "alloc"))]
     impl IntoAtomic for alloc::string::String {}
@@ -297,6 +341,11 @@ impl<'s> IntoAtomic for &'s str {
 
 impl<'b> IntoAtomic for &'b [u8] {
     type AsAtomic = Blob<'b>;
+}
+
+#[cfg(any(test, feature = "alloc"))]
+impl IntoAtomic for Dynamic {
+    type AsAtomic = Dynamic;
 }
 
 #[cfg(any(test, feature = "alloc"))]
