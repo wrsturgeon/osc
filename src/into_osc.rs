@@ -19,38 +19,18 @@ pub trait IntoOsc {
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[allow(clippy::type_complexity)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone;
 }
 
 impl IntoOsc for i32 {
     type AsOsc = (Integer,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
@@ -60,19 +40,9 @@ impl IntoOsc for i32 {
 impl IntoOsc for f32 {
     type AsOsc = (Float,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
@@ -82,19 +52,9 @@ impl IntoOsc for f32 {
 impl<'s> IntoOsc for &'s str {
     type AsOsc = (String<'s>,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
@@ -104,19 +64,9 @@ impl<'s> IntoOsc for &'s str {
 impl<'b> IntoOsc for &'b [u8] {
     type AsOsc = (Blob<'b>,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
@@ -126,19 +76,9 @@ impl<'b> IntoOsc for &'b [u8] {
 impl IntoOsc for () {
     type AsOsc = ();
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, ()))
@@ -155,16 +95,9 @@ macro_rules! impl_for_tuple {
             fn into_osc<I: IntoAddress>(
                 self,
                 address: I,
-            ) -> Result<
-                Message<
-                    core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-                    Self::AsOsc,
-                >,
-                AddressErr,
-            >
+            ) -> Result<Message<I, Self::AsOsc>, AddressErr>
             where
                 I::Item: IntoIntoAddress,
-                I::IntoIter: Clone,
                 <I::Item as IntoIntoAddress>::IntoAddr: Clone,
             {
                 let ($($id),+,) = self;
@@ -183,70 +116,40 @@ impl_for_tuple!(A, B, C, D, E, F);
 impl_for_tuple!(A, B, C, D, E, F, G);
 impl_for_tuple!(A, B, C, D, E, F, G, H);
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoOsc for Dynamic {
     type AsOsc = (Dynamic,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self,)))
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoOsc for alloc::string::String {
     type AsOsc = (DynamicString,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl IntoOsc for alloc::vec::Vec<u8> {
     type AsOsc = (DynamicBlob,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(
-        self,
-        address: I,
-    ) -> Result<
-        Message<
-            core::iter::Map<I::IntoIter, fn(I::Item) -> <I::Item as IntoIntoAddress>::IntoAddr>,
-            Self::AsOsc,
-        >,
-        AddressErr,
-    >
+    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
     where
         I::Item: IntoIntoAddress,
-        I::IntoIter: Clone,
         <I::Item as IntoIntoAddress>::IntoAddr: Clone,
     {
         Ok(Message::new(address.into_address()?, (self.into_atomic(),)))

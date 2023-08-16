@@ -184,7 +184,7 @@ impl_tuple!(
     H, //
 );
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl Tuple for alloc::vec::Vec<crate::Dynamic> {
     type TypeTagIter = alloc::vec::IntoIter<u8>;

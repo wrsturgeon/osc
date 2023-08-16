@@ -71,7 +71,8 @@ impl TryFrom<Dynamic> for DynamicBlob {
     }
 }
 
-#[cfg(any(test, feature = "quickcheck"))]
+#[cfg(feature = "quickcheck")]
+#[allow(unused_qualifications)]
 impl quickcheck::Arbitrary for Dynamic {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         #[allow(
@@ -92,12 +93,12 @@ impl quickcheck::Arbitrary for Dynamic {
         let f = unsafe { opt.unwrap_unchecked() };
         f(g)
     }
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+    fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
         match self {
-            &Self::Integer(ref i) => Box::new(i.shrink().map(Self::Integer)),
-            &Self::Float(ref f) => Box::new(f.shrink().map(Self::Float)),
-            &Self::String(ref s) => Box::new(s.shrink().map(Self::String)),
-            &Self::Blob(ref b) => Box::new(b.shrink().map(Self::Blob)),
+            &Self::Integer(ref i) => alloc::boxed::Box::new(i.shrink().map(Self::Integer)),
+            &Self::Float(ref f) => alloc::boxed::Box::new(f.shrink().map(Self::Float)),
+            &Self::String(ref s) => alloc::boxed::Box::new(s.shrink().map(Self::String)),
+            &Self::Blob(ref b) => alloc::boxed::Box::new(b.shrink().map(Self::Blob)),
         }
     }
 }

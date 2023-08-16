@@ -6,71 +6,89 @@
 
 //! Typed data to a specified address.
 
-use crate::{address::Address, tuple::Tuple, Batch, Batched};
+use crate::{
+    address::{Address, IntoIntoAddress},
+    tuple::Tuple,
+    Batch, Batched,
+};
 use core::iter::{once, Chain, Once};
 
-/// Typed data to a specified address.
-#[repr(transparent)]
-#[derive(Clone)]
-#[allow(clippy::type_complexity, missing_debug_implementations)]
-pub struct Message<A: Iterator, T: Tuple>(
-    Chain<
-        Chain<Batched<Address<A>>, Batched<Chain<Chain<Once<u8>, T::TypeTagIter>, Once<u8>>>>,
-        T::Chained,
-    >,
-)
+/// OSC message: address, type tag (inferred), and data.
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Message<Addr: IntoIterator, Data: Tuple>
 where
-    A::Item: Clone + IntoIterator<Item = u8>,
-    <A::Item as IntoIterator>::IntoIter: Clone;
+    Addr::Item: IntoIntoAddress,
+    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
+{
+    /// Address without type tag.
+    address: Address<Addr>,
+    /// Data after address & type tag.
+    data: Data,
+}
 
-impl<A: Iterator, T: Tuple> Message<A, T>
+impl<Addr: IntoIterator, Data: Tuple> Message<Addr, Data>
 where
-    A::Item: Clone + Iterator<Item = u8>,
+    Addr::Item: IntoIntoAddress,
+    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
 {
     /// Prefer `.into_osc()`, but if you already have OSC data, this is fine.
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[inline]
-    pub fn new(address: Address<A>, data: T) -> Self {
-        Self(
-            address
-                .batch()
-                .chain(once(b',').chain(data.type_tag()).chain(once(b'\0')).batch())
-                .chain(data.chain()),
-        )
+    pub const fn new(address: Address<Addr>, data: Data) -> Self {
+        Self { address, data }
     }
 }
 
-impl<A: Iterator, T: Tuple> Iterator for Message<A, T>
+impl<Addr: IntoIterator, Data: Tuple> IntoIterator for Message<Addr, Data>
 where
-    A::Item: Iterator<Item = u8>,
-    <A::Item as IntoIterator>::IntoIter: Clone,
+    Addr::Item: IntoIntoAddress,
+    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
 {
     type Item = u8;
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+    type IntoIter = Chain<
+        Chain<
+            Batched<<Address<Addr> as IntoIterator>::IntoIter>,
+            Batched<Chain<Chain<Once<u8>, Data::TypeTagIter>, Once<u8>>>,
+        >,
+        Data::Chained,
+    >;
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.address
+            .into_iter()
+            .batch()
+            .chain(
+                once(b',')
+                    .chain(self.data.type_tag())
+                    .chain(once(b'\0'))
+                    .batch(),
+            )
+            .chain(self.data.chain())
     }
 }
 
 #[allow(unused_qualifications)]
-#[cfg(any(test, feature = "quickcheck"))]
+#[cfg(feature = "quickcheck")]
 impl quickcheck::Arbitrary
-    for Message<
-        core::iter::Map<
-            alloc::vec::IntoIter<alloc::string::String>,
-            fn(alloc::string::String) -> alloc::vec::IntoIter<u8>,
-        >,
-        alloc::vec::Vec<crate::Dynamic>,
-    >
+    for Message<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<crate::Dynamic>>
 {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        use crate::IntoAddress;
-        // TODO: explicitly avoid `Err` instead of just resampling (could take a while on long addresses)
-        loop {
-            let r = alloc::vec::Vec::<alloc::string::String>::arbitrary(g).into_address();
-            let Ok(addr) = r else { continue; };
-            return Message::new(addr, alloc::vec::Vec::arbitrary(g));
-        }
+        Message::new(Address::arbitrary(g), alloc::vec::Vec::arbitrary(g))
     }
+    // TODO: fix
+    /*
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(
+            self.data
+                .shrink()
+                .map(|d| Message::new(self.address.clone(), d))
+                .chain(
+                    self.address
+                        .shrink()
+                        .map(|a| Message::new(a, self.data.clone())),
+                ),
+        )
+    }
+    */
 }

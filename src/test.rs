@@ -6,8 +6,6 @@
 
 #![allow(clippy::default_numeric_fallback, clippy::unwrap_used)]
 
-use quickcheck::quickcheck;
-
 use crate::{IntoAtomic, IntoOsc, Tuple};
 
 /// Examples from <https://opensoundcontrol.stanford.edu/spec-1_0-examples.html>.
@@ -58,7 +56,10 @@ mod from_the_spec {
     #[test]
     fn message_oscillator_4_frequency() {
         let msg = (440.).into_osc(["oscillator", "4", "frequency"]).unwrap();
-        assert!(msg.eq(b"/oscillator/4/frequency\0,f\0\0\x43\xDC\0\0"
+        assert!(msg.into_iter().eq(b"\
+            /oscillator/4/frequency\0\
+            ,f\0\0\
+            \x43\xDC\x00\x00"
             .iter()
             .copied()));
     }
@@ -66,7 +67,7 @@ mod from_the_spec {
     #[test]
     fn message_foo() {
         let msg = (1000, -1, "hello", 1.234, 5.678).into_osc(["foo"]).unwrap();
-        assert!(msg.eq(b"\
+        assert!(msg.into_iter().eq(b"\
             /foo\0\0\0\0\
             ,iisff\0\0\
             \x00\x00\x03\xE8\
@@ -79,7 +80,11 @@ mod from_the_spec {
     }
 }
 
-quickcheck! {
-    // TODO:
-    // fn address_doesnt_panic(address: QCAddress) -> bool { true }
+#[cfg(feature = "quickcheck")]
+mod qc {
+    use {crate::Address, quickcheck::quickcheck};
+    quickcheck! {
+        #[allow(unused_variables)]
+        fn address_doesnt_panic(address: Address<Vec<String>>) -> bool { true }
+    }
 }

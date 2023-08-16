@@ -49,12 +49,12 @@ pub struct String<'s>(&'s str);
 pub struct Blob<'b>(&'b [u8]);
 
 /// Null-terminated (not your responsibility!) byte string.
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DynamicString(alloc::string::String);
 /// Arbitrary known-length collection of bytes.
 #[allow(unused_qualifications)]
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DynamicBlob(alloc::vec::Vec<u8>);
 
@@ -93,7 +93,7 @@ impl<'b> Atomic for Blob<'b> {
     type Iter = Copied<core::slice::Iter<'b, u8>>;
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl Atomic for Dynamic {
     #[inline(always)]
     fn type_tag(&self) -> u8 {
@@ -107,7 +107,7 @@ impl Atomic for Dynamic {
     type AsRust = Dynamic;
     type Iter = alloc::vec::IntoIter<u8>;
 }
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl Atomic for DynamicString {
     #[inline(always)]
     fn type_tag(&self) -> u8 {
@@ -116,7 +116,7 @@ impl Atomic for DynamicString {
     type AsRust = alloc::string::String;
     type Iter = Chain<alloc::vec::IntoIter<u8>, Once<u8>>;
 }
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl Atomic for DynamicBlob {
     #[inline(always)]
     fn type_tag(&self) -> u8 {
@@ -187,14 +187,14 @@ impl<'b> From<Blob<'b>> for &'b [u8] {
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl From<alloc::string::String> for DynamicString {
     #[inline(always)]
     fn from(value: alloc::string::String) -> Self {
         Self(value)
     }
 }
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl From<DynamicString> for alloc::string::String {
     #[inline(always)]
     fn from(value: DynamicString) -> Self {
@@ -202,7 +202,7 @@ impl From<DynamicString> for alloc::string::String {
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl From<alloc::vec::Vec<u8>> for DynamicBlob {
     #[inline(always)]
@@ -210,7 +210,7 @@ impl From<alloc::vec::Vec<u8>> for DynamicBlob {
         Self(value)
     }
 }
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl From<DynamicBlob> for alloc::vec::Vec<u8> {
     #[inline(always)]
@@ -257,7 +257,7 @@ impl IntoIterator for Blob<'_> {
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoIterator for Dynamic {
     type IntoIter = Batched<<Self as Atomic>::Iter>;
     type Item = u8;
@@ -274,7 +274,7 @@ impl IntoIterator for Dynamic {
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoIterator for DynamicString {
     type IntoIter = Batched<<Self as Atomic>::Iter>;
     type Item = u8;
@@ -284,7 +284,7 @@ impl IntoIterator for DynamicString {
     }
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoIterator for DynamicBlob {
     type IntoIter = Batched<<Self as Atomic>::Iter>;
     type Item = u8;
@@ -305,13 +305,13 @@ mod sealed {
     impl IntoAtomic for &str {}
     impl IntoAtomic for &[u8] {}
 
-    #[cfg(any(test, feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     impl IntoAtomic for crate::Dynamic {}
     #[allow(unused_qualifications)]
-    #[cfg(any(test, feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     impl IntoAtomic for alloc::string::String {}
     #[allow(unused_qualifications)]
-    #[cfg(any(test, feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     impl IntoAtomic for alloc::vec::Vec<u8> {}
 }
 
@@ -343,17 +343,17 @@ impl<'b> IntoAtomic for &'b [u8] {
     type AsAtomic = Blob<'b>;
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoAtomic for Dynamic {
     type AsAtomic = Dynamic;
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 impl IntoAtomic for alloc::string::String {
     type AsAtomic = DynamicString;
 }
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl IntoAtomic for alloc::vec::Vec<u8> {
     type AsAtomic = DynamicBlob;
@@ -361,7 +361,8 @@ impl IntoAtomic for alloc::vec::Vec<u8> {
 
 //////////////// QuickCheck implementations
 
-#[cfg(any(test, feature = "quickcheck"))]
+#[cfg(feature = "quickcheck")]
+#[allow(unused_qualifications)]
 mod qc {
     use super::*;
 
@@ -371,8 +372,8 @@ mod qc {
             i32::arbitrary(g).into_atomic()
         }
         #[inline]
-        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-            Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+        fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+            alloc::boxed::Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
         }
     }
 
@@ -382,8 +383,8 @@ mod qc {
             f32::arbitrary(g).into_atomic()
         }
         #[inline]
-        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-            Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+        fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+            alloc::boxed::Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
         }
     }
 
@@ -393,8 +394,8 @@ mod qc {
             alloc::string::String::arbitrary(g).into_atomic()
         }
         #[inline]
-        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-            Box::new(
+        fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+            alloc::boxed::Box::new(
                 self.clone()
                     .into_rust()
                     .shrink()
@@ -403,14 +404,15 @@ mod qc {
         }
     }
 
+    #[allow(unused_qualifications)]
     impl quickcheck::Arbitrary for DynamicBlob {
         #[inline]
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             alloc::vec::Vec::arbitrary(g).into_atomic()
         }
         #[inline]
-        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-            Box::new(
+        fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+            alloc::boxed::Box::new(
                 self.clone()
                     .into_rust()
                     .shrink()

@@ -13,6 +13,7 @@
     clippy::missing_docs_in_private_items,
     clippy::nursery,
     clippy::pedantic,
+    clippy::perf,
     clippy::restriction,
     clippy::cargo,
     elided_lifetimes_in_paths,
@@ -79,7 +80,7 @@
     clippy::wildcard_imports
 )]
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod address;
@@ -89,7 +90,7 @@ mod into_osc;
 mod message;
 mod tuple;
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 mod dynamic;
 
 pub use {
@@ -101,14 +102,11 @@ pub use {
     tuple::Tuple,
 };
 
-#[cfg(any(test, feature = "alloc"))]
+#[cfg(feature = "alloc")]
 pub use {
     atomic::{DynamicBlob, DynamicString},
     dynamic::Dynamic,
 };
-
-#[cfg(any(test, feature = "quickcheck"))]
-pub use address::QCAddress;
 
 #[cfg(test)]
 mod test;
