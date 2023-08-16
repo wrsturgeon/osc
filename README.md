@@ -35,3 +35,7 @@ you might want to enable `alloc` to read into expansible buffers.
 Practice, and I wanted a library that's easy for me to understand with a different API.
 
 For another option, please see [rosc](https://github.com/klingtnet/rosc)!
+
+## Property testing?
+
+Beat me to it! Just enable the `quickcheck` feature and all types in the crate are arbitrary and shrinkable.

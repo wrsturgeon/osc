@@ -74,6 +74,7 @@ impl TryFrom<Dynamic> for DynamicBlob {
 #[cfg(feature = "quickcheck")]
 #[allow(unused_qualifications)]
 impl quickcheck::Arbitrary for Dynamic {
+    #[inline]
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         #[allow(
             clippy::as_conversions,
@@ -93,6 +94,7 @@ impl quickcheck::Arbitrary for Dynamic {
         let f = unsafe { opt.unwrap_unchecked() };
         f(g)
     }
+    #[inline]
     fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
         match self {
             &Self::Integer(ref i) => alloc::boxed::Box::new(i.shrink().map(Self::Integer)),

@@ -171,6 +171,7 @@ where
 #[allow(clippy::unwrap_used, unused_qualifications)]
 #[cfg(feature = "quickcheck")]
 impl quickcheck::Arbitrary for Address<alloc::vec::Vec<alloc::string::String>> {
+    #[inline]
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         loop {
             let mut vv: alloc::vec::Vec<alloc::string::String> = alloc::vec::Vec::arbitrary(g);
@@ -183,6 +184,7 @@ impl quickcheck::Arbitrary for Address<alloc::vec::Vec<alloc::string::String>> {
             return vv.into_address().unwrap();
         }
     }
+    #[inline]
     fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
         alloc::boxed::Box::new(self.0.shrink().map(|mut vv| {
             for v in &mut vv {

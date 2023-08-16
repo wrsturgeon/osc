@@ -81,7 +81,7 @@ mod from_the_spec {
 }
 
 #[cfg(feature = "quickcheck")]
-mod qc {
+mod prop {
     use {crate::Address, quickcheck::quickcheck};
     quickcheck! {
         #[allow(unused_variables)]

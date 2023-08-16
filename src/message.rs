@@ -73,22 +73,17 @@ where
 impl quickcheck::Arbitrary
     for Message<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<crate::Dynamic>>
 {
+    #[inline]
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Message::new(Address::arbitrary(g), alloc::vec::Vec::arbitrary(g))
     }
-    // TODO: fix
-    /*
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        Box::new(
-            self.data
+    #[inline]
+    fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+        alloc::boxed::Box::new(
+            self.address
                 .shrink()
-                .map(|d| Message::new(self.address.clone(), d))
-                .chain(
-                    self.address
-                        .shrink()
-                        .map(|a| Message::new(a, self.data.clone())),
-                ),
+                .zip(self.data.shrink())
+                .map(|(address, data)| Self { address, data }),
         )
     }
-    */
 }

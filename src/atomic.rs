@@ -363,7 +363,9 @@ impl IntoAtomic for alloc::vec::Vec<u8> {
 
 #[cfg(feature = "quickcheck")]
 #[allow(unused_qualifications)]
-mod qc {
+mod prop {
+    //! Implementations of `quickcheck::Arbitrary`.
+
     use super::*;
 
     impl quickcheck::Arbitrary for Integer {
