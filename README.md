@@ -24,10 +24,12 @@ assert!(osc.into_iter().eq(by_hand.iter().copied()));
 
 ## `no_std`
 
-This library is fully `no_std` and doesn't require `alloc`: just disable default features for this crate.
+This library is fully `no_std` and remains fully operational without heap allocation.
 
-If you're planning on receiving OSC data whose types you can't know beforehand,
-you might want to enable `alloc` to read into expansible buffers.
+Note that disabling the `alloc` feature (enabled by default) will not change any existing code,
+but it will prevent you from working with OSC data whose types you don't know a priori.
+
+If you're planning on processing unforeseen messages (not tossing them), you should keep `alloc`.
 
 ## Why another OSC library?
 
