@@ -6,8 +6,11 @@
 
 //! Integer, float, string, or blob.
 
-use crate::{Batch, Batched, Dynamic, IntoOsc};
+use crate::{Batch, Batched, IntoOsc};
 use core::iter::{once, Chain, Copied, Once};
+
+#[cfg(feature = "alloc")]
+use crate::Dynamic;
 
 //////////////// Trait definition
 

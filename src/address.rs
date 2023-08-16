@@ -33,6 +33,14 @@ impl<'s> IntoIntoAddress for &'s str {
     }
 }
 
+impl<'s> IntoIntoAddress for &'_ &'s str {
+    type IntoAddr = core::str::Bytes<'s>;
+    fn into_into_addr(self) -> Self::IntoAddr {
+        self.bytes()
+    }
+}
+
+#[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 impl IntoIntoAddress for alloc::string::String {
     type IntoAddr = alloc::vec::IntoIter<u8>;

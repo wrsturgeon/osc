@@ -13,9 +13,25 @@ use crate::{
 };
 use core::iter::{once, Chain, Once};
 
+/// Default type parameter for the address of a message.
+#[cfg(feature = "alloc")]
+#[allow(unused_qualifications)]
+type AddrDefault = alloc::vec::Vec<alloc::string::String>;
+/// Default type parameter for the data of a message.
+#[cfg(feature = "alloc")]
+#[allow(unused_qualifications)]
+type DataDefault = alloc::vec::Vec<crate::Dynamic>;
+
+/// Default type parameter for the address of a message.
+#[cfg(not(feature = "alloc"))]
+type AddrDefault = &'static [&'static str];
+/// Default type parameter for the data of a message.
+#[cfg(not(feature = "alloc"))]
+type DataDefault = ();
+
 /// OSC message: address, type tag (inferred), and data.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Message<Addr: IntoIterator, Data: Tuple>
+pub struct Message<Addr: IntoIterator = AddrDefault, Data: Tuple = DataDefault>
 where
     Addr::Item: IntoIntoAddress,
     <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,

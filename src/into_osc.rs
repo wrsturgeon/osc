@@ -7,9 +7,12 @@
 //! Format a Rust type as an OSC message.
 
 use crate::{
-    address::IntoIntoAddress, tuple::Tuple, AddressErr, Blob, Dynamic, DynamicBlob, DynamicString,
-    Float, Integer, IntoAddress, IntoAtomic, Message, String,
+    address::IntoIntoAddress, tuple::Tuple, AddressErr, Blob, Float, Integer, IntoAddress,
+    IntoAtomic, Message, String,
 };
+
+#[cfg(feature = "alloc")]
+use crate::{Dynamic, DynamicBlob, DynamicString};
 
 /// Format a Rust type as an OSC message.
 pub trait IntoOsc {
