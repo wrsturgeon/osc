@@ -22,69 +22,82 @@ pub trait IntoOsc {
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[allow(clippy::type_complexity)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone;
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr>;
 }
 
 impl IntoOsc for i32 {
     type AsOsc = (Integer,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }
 
 impl IntoOsc for f32 {
     type AsOsc = (Float,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }
 
 impl<'s> IntoOsc for &'s str {
     type AsOsc = (String<'s>,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }
 
 impl<'b> IntoOsc for &'b [u8] {
     type AsOsc = (Blob<'b>,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }
 
 impl IntoOsc for () {
     type AsOsc = ();
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, ()))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(path.into_address(method)?, ()))
     }
 }
 
@@ -95,16 +108,13 @@ macro_rules! impl_for_tuple {
             type AsOsc = ($($id::AsAtomic),+,);
             #[inline(always)]
             #[allow(non_snake_case)]
-            fn into_osc<I: IntoAddress>(
+            fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
                 self,
-                address: I,
-            ) -> Result<Message<I, Self::AsOsc>, AddressErr>
-            where
-                I::Item: IntoIntoAddress,
-                <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-            {
+                path: Path,
+                method: Method,
+            ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
                 let ($($id),+,) = self;
-                Ok(Message::new(address.into_address()?, ($($id.into_atomic()),+,)))
+                Ok(Message::new(path.into_address(method)?, ($($id.into_atomic()),+,)))
             }
         }
     };
@@ -123,12 +133,12 @@ impl_for_tuple!(A, B, C, D, E, F, G, H);
 impl IntoOsc for Dynamic {
     type AsOsc = (Dynamic,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self,)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(path.into_address(method)?, (self,)))
     }
 }
 
@@ -136,12 +146,15 @@ impl IntoOsc for Dynamic {
 impl IntoOsc for alloc::string::String {
     type AsOsc = (DynamicString,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }
 
@@ -150,11 +163,14 @@ impl IntoOsc for alloc::string::String {
 impl IntoOsc for alloc::vec::Vec<u8> {
     type AsOsc = (DynamicBlob,);
     #[inline(always)]
-    fn into_osc<I: IntoAddress>(self, address: I) -> Result<Message<I, Self::AsOsc>, AddressErr>
-    where
-        I::Item: IntoIntoAddress,
-        <I::Item as IntoIntoAddress>::IntoAddr: Clone,
-    {
-        Ok(Message::new(address.into_address()?, (self.into_atomic(),)))
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(
+            path.into_address(method)?,
+            (self.into_atomic(),),
+        ))
     }
 }

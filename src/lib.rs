@@ -86,6 +86,7 @@ extern crate alloc;
 mod address;
 mod atomic;
 mod batch;
+mod decode;
 mod into_osc;
 mod message;
 mod tuple;
@@ -97,6 +98,7 @@ pub use {
     address::{valid_address_character, Address, AddressErr, IntoAddress},
     atomic::{Atomic, Blob, Float, Integer, IntoAtomic, String},
     batch::{Batch, Batched},
+    decode::{AddressDecodeErr, Aligned4B, Decode},
     into_osc::IntoOsc,
     message::Message,
     tuple::Tuple,

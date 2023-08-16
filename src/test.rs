@@ -55,7 +55,7 @@ mod from_the_spec {
 
     #[test]
     fn message_oscillator_4_frequency() {
-        let msg = (440.).into_osc(["oscillator", "4", "frequency"]).unwrap();
+        let msg = (440.).into_osc(["oscillator", "4"], "frequency").unwrap();
         assert!(msg.into_iter().eq(b"\
             /oscillator/4/frequency\0\
             ,f\0\0\
@@ -66,7 +66,9 @@ mod from_the_spec {
 
     #[test]
     fn message_foo() {
-        let msg = (1000, -1, "hello", 1.234, 5.678).into_osc(["foo"]).unwrap();
+        let msg = (1000, -1, "hello", 1.234, 5.678)
+            .into_osc([], "foo")
+            .unwrap();
         assert!(msg.into_iter().eq(b"\
             /foo\0\0\0\0\
             ,iisff\0\0\
@@ -82,9 +84,20 @@ mod from_the_spec {
 
 #[cfg(feature = "quickcheck")]
 mod prop {
-    use {crate::Address, quickcheck::quickcheck};
+    use {
+        crate::{Address, Decode, Message},
+        quickcheck::quickcheck,
+    };
     quickcheck! {
+
         #[allow(unused_variables)]
-        fn address_doesnt_panic(address: Address<Vec<String>>) -> bool { true }
+        fn message_doesnt_panic(message: Message<Vec<String>>) -> bool { true }
+
+        fn address_roundtrip(address: Address<Vec<String>, String>) -> bool {
+            let redecoded = Address::decode(&mut address.clone().into_iter());
+            println!("{address:#?} --> {redecoded:#?}");
+            redecoded == Ok(address)
+        }
+
     }
 }

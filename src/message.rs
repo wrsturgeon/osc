@@ -13,58 +13,61 @@ use crate::{
 };
 use core::iter::{once, Chain, Once};
 
-/// Default type parameter for the address of a message.
+/// Default type parameter for the path of a message.
 #[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
-type AddrDefault = alloc::vec::Vec<alloc::string::String>;
+type AddrDefault = alloc::vec::Vec<MethodDefault>;
+/// Default type parameter for the method of a message.
+#[cfg(feature = "alloc")]
+#[allow(unused_qualifications)]
+type MethodDefault = alloc::string::String;
 /// Default type parameter for the data of a message.
 #[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
 type DataDefault = alloc::vec::Vec<crate::Dynamic>;
 
-/// Default type parameter for the address of a message.
+/// Default type parameter for the path of a message.
 #[cfg(not(feature = "alloc"))]
-type AddrDefault = &'static [&'static str];
+type AddrDefault = &'static [MethodDefault];
+/// Default type parameter for the method of a message.
+#[cfg(not(feature = "alloc"))]
+type MethodDefault = &'static str;
 /// Default type parameter for the data of a message.
 #[cfg(not(feature = "alloc"))]
 type DataDefault = ();
 
 /// OSC message: address, type tag (inferred), and data.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Message<Addr: IntoIterator = AddrDefault, Data: Tuple = DataDefault>
-where
-    Addr::Item: IntoIntoAddress,
-    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
-{
+pub struct Message<
+    Path: IntoIterator<Item = Method> = AddrDefault,
+    Method: IntoIntoAddress = MethodDefault,
+    Data: Tuple = DataDefault,
+> {
     /// Address without type tag.
-    address: Address<Addr>,
+    address: Address<Path, Method>,
     /// Data after address & type tag.
     data: Data,
 }
 
-impl<Addr: IntoIterator, Data: Tuple> Message<Addr, Data>
-where
-    Addr::Item: IntoIntoAddress,
-    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
+impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple>
+    Message<Path, Method, Data>
 {
     /// Prefer `.into_osc()`, but if you already have OSC data, this is fine.
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[inline]
-    pub const fn new(address: Address<Addr>, data: Data) -> Self {
+    pub const fn new(address: Address<Path, Method>, data: Data) -> Self {
         Self { address, data }
     }
 }
 
-impl<Addr: IntoIterator, Data: Tuple> IntoIterator for Message<Addr, Data>
-where
-    Addr::Item: IntoIntoAddress,
-    <Addr::Item as IntoIntoAddress>::IntoAddr: Clone,
+impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple> IntoIterator
+    for Message<Path, Method, Data>
 {
     type Item = u8;
     type IntoIter = Chain<
         Chain<
-            Batched<<Address<Addr> as IntoIterator>::IntoIter>,
+            Batched<<Address<Path, Method> as IntoIterator>::IntoIter>,
             Batched<Chain<Chain<Once<u8>, Data::TypeTagIter>, Once<u8>>>,
         >,
         Data::Chained,
@@ -87,7 +90,11 @@ where
 #[allow(unused_qualifications)]
 #[cfg(feature = "quickcheck")]
 impl quickcheck::Arbitrary
-    for Message<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<crate::Dynamic>>
+    for Message<
+        alloc::vec::Vec<alloc::string::String>,
+        alloc::string::String,
+        alloc::vec::Vec<crate::Dynamic>,
+    >
 {
     #[inline]
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
