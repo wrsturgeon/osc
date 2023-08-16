@@ -15,11 +15,11 @@ let by_hand = b"\
     \x3F\x9D\xF3\xB6\
     \x40\xB5\xB2\x2D";
 
-/// The bundle is an iterator that never allocates a temporary array.
-/// We can use `Iterator::eq` to compare it to the intended output:
+// The bundle is an iterator that never allocates a temporary array.
+// We can use `Iterator::eq` to compare it to the intended output:
 assert!(osc.into_iter().eq(by_hand.iter().copied()));
 
-/// Et voila !
+// Et voila !
 ```
 
 ## `no_std`
