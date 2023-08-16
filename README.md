@@ -5,22 +5,21 @@
 
 An example from the [official OSC spec](https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples) that's tested in CI:
 ```rust
-let msg = (1000, -1, "hello", 1.234, 5.678).into_osc("foo");
-
-/// The bundle is an iterator that never copies into a temporary array.
-/// We can use `Iterator::eq` to compare it to the intended output:
-assert!(msg.eq(b"\
+let osc = (1000, -1, "hello", 1.234, 5.678).into_osc([], "foo")?;
+let by_hand = b"\
     /foo\0\0\0\0\
     ,iisff\0\0\
     \x00\x00\x03\xE8\
     \xFF\xFF\xFF\xFF\
     hello\0\0\0\
     \x3F\x9D\xF3\xB6\
-    \x40\xB5\xB2\x2D"
-    .iter()
-    .copied()))
+    \x40\xB5\xB2\x2D";
 
-/// Et voila ! Everything just works.
+/// The bundle is an iterator that never allocates a temporary array.
+/// We can use `Iterator::eq` to compare it to the intended output:
+assert!(osc.into_iter().eq(by_hand.iter().copied()));
+
+/// Et voila !
 ```
 
 ## `no_std`

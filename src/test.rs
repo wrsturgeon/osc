@@ -10,6 +10,8 @@ use crate::{IntoAtomic, IntoOsc, Tuple};
 
 /// Examples from <https://opensoundcontrol.stanford.edu/spec-1_0-examples.html>.
 mod from_the_spec {
+    use crate::AddressErr;
+
     use super::*;
 
     #[test]
@@ -65,20 +67,19 @@ mod from_the_spec {
     }
 
     #[test]
-    fn message_foo() {
-        let msg = (1000, -1, "hello", 1.234, 5.678)
-            .into_osc([], "foo")
-            .unwrap();
-        assert!(msg.into_iter().eq(b"\
+    #[allow(clippy::panic_in_result_fn)]
+    fn message_foo() -> Result<(), AddressErr> {
+        let osc = (1000, -1, "hello", 1.234, 5.678).into_osc([], "foo")?;
+        let by_hand = b"\
             /foo\0\0\0\0\
             ,iisff\0\0\
             \x00\x00\x03\xE8\
             \xFF\xFF\xFF\xFF\
             hello\0\0\0\
             \x3F\x9D\xF3\xB6\
-            \x40\xB5\xB2\x2D"
-            .iter()
-            .copied()));
+            \x40\xB5\xB2\x2D";
+        assert!(osc.into_iter().eq(by_hand.iter().copied()));
+        Ok(())
     }
 }
 

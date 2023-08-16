@@ -67,7 +67,7 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple> In
     type Item = u8;
     type IntoIter = Chain<
         Chain<
-            Batched<<Address<Path, Method> as IntoIterator>::IntoIter>,
+            <Address<Path, Method> as IntoIterator>::IntoIter,
             Batched<Chain<Chain<Once<u8>, Data::TypeTagIter>, Once<u8>>>,
         >,
         Data::Chained,
@@ -76,7 +76,7 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple> In
     fn into_iter(self) -> Self::IntoIter {
         self.address
             .into_iter()
-            .batch()
+            // batched already
             .chain(
                 once(b',')
                     .chain(self.data.type_tag())
