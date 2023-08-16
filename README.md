@@ -3,7 +3,7 @@
 
 ## Example
 
-An example from the [official OSC spec](https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples) that's tested in CI:
+An example from the [official OSC spec](https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#osc-message-examples) that's [tested in CI](https://github.com/wrsturgeon/osc/blob/main/src/test.rs#L71):
 ```rust
 let osc = (1000, -1, "hello", 1.234, 5.678).into_osc([], "foo")?;
 let by_hand = b"\
