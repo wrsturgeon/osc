@@ -4,7 +4,12 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#![allow(clippy::default_numeric_fallback, clippy::unwrap_used)]
+#![allow(
+    clippy::default_numeric_fallback,
+    clippy::print_stdout,
+    clippy::unwrap_used,
+    clippy::use_debug
+)]
 
 use crate::{IntoAtomic, IntoOsc, Tuple};
 
@@ -86,11 +91,10 @@ mod from_the_spec {
 #[cfg(feature = "quickcheck")]
 mod prop {
     use {
-        crate::{Address, Aligned4B, Decode, Message},
+        crate::{Address, Aligned4B, Decode, /* Dynamic, */ Message},
         quickcheck::quickcheck,
     };
     quickcheck! {
-
         #[allow(unused_variables)]
         fn message_doesnt_panic(message: Message<Vec<String>>) -> bool { true }
 
@@ -109,11 +113,53 @@ mod prop {
             }
         }
 
-        fn address_roundtrip(address: Address<Vec<String>, String>) -> bool {
-            let redecoded = Address::decode(&mut address.clone().into_iter());
-            println!("{address:#?} --> {redecoded:#?}");
-            redecoded == Ok(address)
+        fn address_roundtrip(original: Address<Vec<String>, String>) -> bool {
+            let decoded = Address::decode(&mut original.clone().into_iter());
+            println!("{original:#?} --> {decoded:#?}");
+            decoded == Ok(original)
         }
 
+        fn address_roundtrip_bytes(original: Vec<u8>) -> bool {
+            for _ in 0..(1 << 16) {
+                let Ok(decoded) = Address::decode(&mut original.iter().copied()) else { continue; };
+                let recoded: Vec<_> = decoded.into_iter().collect();
+                println!("{original:#?} --> {recoded:#?}");
+                for (a, b) in recoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
+            }
+            true
+        }
+
+        // fn data_roundtrip(original: Vec<Dynamic>) -> bool {
+        //     let decoded = Vec::<Dynamic>::decode(&mut original.clone().into_iter());
+        //     println!("{original:#?} --> {decoded:#?}");
+        //     decoded == Ok(original)
+        // }
+    }
+}
+
+mod prop_reduced {
+    #[cfg(feature = "alloc")]
+    use crate::{Address, Decode};
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    #[allow(clippy::similar_names)]
+    fn address_roundtrip_bytes_reduced_1() {
+        let original = alloc::vec![47, 1, 0, 1];
+        let Ok(decoded) = Address::decode(&mut original.iter().copied()) else { return; };
+        let recoded: Vec<_> = decoded.into_iter().collect();
+        println!("{original:#?} --> {recoded:#?}");
+        assert_eq!(recoded, original);
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    #[allow(clippy::similar_names)]
+    fn address_roundtrip_bytes_reduced_2() {
+        let original = alloc::vec![47, 128, 0, 0];
+        let Ok(decoded) = Address::decode(&mut original.iter().copied()) else { return; };
+        let recoded: Vec<_> = decoded.into_iter().collect();
+        println!("{original:#?} --> {recoded:#?}");
+        assert_eq!(recoded, original);
     }
 }

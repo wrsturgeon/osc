@@ -12,7 +12,7 @@ use crate::Address;
 /// Read a stream of bytes into this OSC type or provide a reason we couldn't.
 pub trait Decode: Sized {
     /// Reasons this might fail.
-    type Error;
+    type Error: core::fmt::Display;
     /// Read a stream of bytes into this OSC type or provide a reason we couldn't.
     /// # Errors
     /// If the stream's length is not a multiple of 4 or if we encounter any issues along the way.
@@ -69,7 +69,115 @@ pub enum AddressDecodeErr {
     /// Immediate `//` with nothing in between.
     EmptySegment,
     /// Blacklisted character, e.g. `*`.
-    InvalidCharacter(u8),
+    PatternsNotYetImplemented(u8),
+    /// Not a printable ASCII character.
+    NotPrintableAscii(u8),
+    /// Returned a null terminator then the rest of the 4-byte chunk was not null.
+    NullThenNonNull,
+}
+
+impl core::fmt::Display for AddressDecodeErr {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            &Self::LeadingSlash { actual } => write!(
+                f,
+                "OSC address missing leading slash (got '{}' instead).",
+                core::ascii::escape_default(actual)
+            ),
+            &Self::NoMethod => write!(
+                f,
+                "OSC address missing a method, i.e. ending immediately after a '/'."
+            ),
+            &Self::EmptySegment => write!(
+                f,
+                "OSC address with a zero-sized segment, i.e. back-to-back slashes \"//\"."
+            ),
+            &Self::PatternsNotYetImplemented(c) => write!(
+                f,
+                "OSC pattern matching not yet implemented (required for the character '{}'). \
+                (Want to help? Open a pull request with your implementation!)",
+                core::ascii::escape_default(c)
+            ),
+            &Self::NotPrintableAscii(c) => write!(
+                f,
+                "OSC address should be entirely printable ASCII characters (got '{}')",
+                core::ascii::escape_default(c)
+            ),
+            &Self::NullThenNonNull => write!(
+                f,
+                "OSC address returned a null terminator, \
+                but then the rest of its 4-byte chunk was non-null."
+            ),
+        }
+    }
+}
+
+/// Parse an individual character with some mutable state passed in.
+#[inline]
+#[cfg(feature = "alloc")]
+#[allow(unsafe_code, unused_qualifications)]
+fn parse_address_char<I: Iterator<Item = u8>>(
+    byte: u8,
+    bytes: &mut I,
+    post_slash: &mut bool,
+    v: &mut alloc::vec::Vec<alloc::string::String>,
+) -> Option<Result<alloc::string::String, Misaligned4B<AddressDecodeErr>>> {
+    match byte {
+        b'\0' => {
+            if *post_slash {
+                Some(Err(Misaligned4B::Other(AddressDecodeErr::NoMethod)))
+            } else {
+                for c in bytes {
+                    if c != b'\0' {
+                        return Some(Err(Misaligned4B::Other(AddressDecodeErr::NullThenNonNull)));
+                    }
+                }
+                // SAFETY:
+                // Control flow guarantees this will not be empty.
+                Some(Ok(unsafe { v.pop().unwrap_unchecked() }))
+            }
+        }
+        b'/' => {
+            if *post_slash {
+                Some(Err(Misaligned4B::Other(AddressDecodeErr::EmptySegment)))
+            } else {
+                v.push(alloc::string::String::new());
+                None
+            }
+        }
+        c @ (b' ' | b'#' | b'*' | b',' | b'?' | b'[' | b']' | b'{' | b'}') => Some(Err(
+            Misaligned4B::Other(AddressDecodeErr::PatternsNotYetImplemented(c)),
+        )),
+        c @ (..=31 | 127..) => Some(Err(Misaligned4B::Other(
+            AddressDecodeErr::NotPrintableAscii(c),
+        ))),
+        c => {
+            *post_slash = false;
+            // SAFETY:
+            // Control flow guarantees this will not be empty.
+            unsafe { v.last_mut().unwrap_unchecked() }.push(char::from(c));
+            None
+        }
+    }
+}
+
+/// Parse four individual characters with some mutable state passed in.
+#[inline]
+#[cfg(feature = "alloc")]
+#[allow(unsafe_code, unused_qualifications)]
+fn parse_address_chars<I: IntoIterator<Item = u8>>(
+    bytes: I,
+    post_slash: &mut bool,
+    v: &mut alloc::vec::Vec<alloc::string::String>,
+) -> Option<Result<alloc::string::String, Misaligned4B<AddressDecodeErr>>> {
+    let mut iter = bytes.into_iter();
+    while let Some(byte) = iter.next() {
+        if let some @ Some(_) = parse_address_char(byte, &mut iter, post_slash, v) {
+            return some;
+        }
+    }
+    None
 }
 
 #[cfg(feature = "alloc")]
@@ -90,81 +198,31 @@ impl Decode for Address<alloc::vec::Vec<alloc::string::String>, alloc::string::S
                 actual,
             }));
         }
-        let mut s = alloc::string::String::new();
-        // SAFETY:
-        // Control flow guarantees this will not be empty.
-        match unsafe { first.next().unwrap_unchecked() } {
-            b'\0' => return Err(Misaligned4B::Other(AddressDecodeErr::NoMethod)),
-            b'/' => return Err(Misaligned4B::Other(AddressDecodeErr::EmptySegment)),
-            c @ (b' ' | b'#' | b'*' | b',' | b'?' | b'[' | b']' | b'{' | b'}') => {
-                return Err(Misaligned4B::Other(AddressDecodeErr::InvalidCharacter(c)))
-            }
-            c => s.push(char::from(c)),
+        let mut post_slash = true;
+        let mut v = alloc::vec![alloc::string::String::new()];
+        match parse_address_char(
+            // SAFETY:
+            // Control flow guarantees this will not be empty.
+            unsafe { first.next().unwrap_unchecked() },
+            &mut first,
+            &mut post_slash,
+            &mut v,
+        ) {
+            None => {}
+            Some(Ok(head)) => return Ok(Address(v, head)),
+            Some(Err(e)) => return Err(e),
         };
-        let mut post_slash = false;
-        let mut v = alloc::vec![s];
-        for byte in first {
-            match byte {
-                b'\0' => {
-                    if post_slash {
-                        return Err(Misaligned4B::Other(AddressDecodeErr::NoMethod));
-                    }
-                    // SAFETY:
-                    // Control flow guarantees this will not be empty.
-                    let head = unsafe { v.pop().unwrap_unchecked() };
-                    return Ok(Address(v, head));
-                }
-                b'/' => {
-                    if post_slash {
-                        return Err(Misaligned4B::Other(AddressDecodeErr::EmptySegment));
-                    }
-                    post_slash = false;
-                    v.push(alloc::string::String::new());
-                }
-                c @ (b' ' | b'#' | b'*' | b',' | b'?' | b'[' | b']' | b'{' | b'}') => {
-                    return Err(Misaligned4B::Other(AddressDecodeErr::InvalidCharacter(c)));
-                }
-                c => {
-                    post_slash = false;
-                    // SAFETY:
-                    // Control flow guarantees this will not be empty.
-                    unsafe { v.last_mut().unwrap_unchecked() }.push(char::from(c));
-                }
-            }
+        match parse_address_chars(&mut first, &mut post_slash, &mut v) {
+            None => {}
+            Some(Ok(head)) => return Ok(Address(v, head)),
+            Some(Err(e)) => return Err(e),
         }
         loop {
             let bytes = Aligned4B::decode(iter).or(Err(Misaligned4B::Misaligned))?;
-            for byte in bytes {
-                match byte {
-                    b'\0' => {
-                        if post_slash {
-                            return Err(Misaligned4B::Other(AddressDecodeErr::NoMethod));
-                        }
-                        // SAFETY:
-                        // Control flow guarantees this will not be empty.
-                        let head = unsafe { v.pop().unwrap_unchecked() };
-                        return Ok(Address(v, head));
-                    }
-                    b'/' => {
-                        if post_slash {
-                            return Err(Misaligned4B::Other(AddressDecodeErr::EmptySegment));
-                        }
-                        post_slash = false;
-                        v.push(alloc::string::String::new());
-                    }
-                    c @ (b' ' | b'#' | b'*' | b',' | b'?' | b'[' | b']' | b'{' | b'}') => {
-                        return Err(Misaligned4B::Other(AddressDecodeErr::InvalidCharacter(c)));
-                    }
-                    c @ (0..=31 | 127..) => {
-                        return Err(Misaligned4B::Other(AddressDecodeErr::InvalidCharacter(c)))
-                    }
-                    c => {
-                        post_slash = false;
-                        // SAFETY:
-                        // Control flow guarantees this will not be empty.
-                        unsafe { v.last_mut().unwrap_unchecked() }.push(char::from(c));
-                    }
-                }
+            match parse_address_chars(bytes, &mut post_slash, &mut v) {
+                None => {}
+                Some(Ok(head)) => return Ok(Address(v, head)),
+                Some(Err(e)) => return Err(e),
             }
         }
     }
