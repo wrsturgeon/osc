@@ -6,6 +6,8 @@
 
 #![allow(clippy::default_numeric_fallback, clippy::unwrap_used)]
 
+use quickcheck::quickcheck;
+
 use crate::{IntoAtomic, IntoOsc, Tuple};
 
 /// Examples from <https://opensoundcontrol.stanford.edu/spec-1_0-examples.html>.
@@ -75,4 +77,9 @@ mod from_the_spec {
             .iter()
             .copied()));
     }
+}
+
+quickcheck! {
+    // TODO:
+    // fn address_doesnt_panic(address: QCAddress) -> bool { true }
 }

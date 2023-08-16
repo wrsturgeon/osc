@@ -6,8 +6,6 @@
 
 //! An OSC address, e.g. `/lighting/right/...`
 
-use core::str::Bytes;
-
 /// Error in an OSC address.
 #[non_exhaustive]
 #[allow(clippy::module_name_repetitions)]
@@ -19,28 +17,75 @@ pub enum AddressErr {
     InvalidCharacter(u8),
 }
 
+/// Convert from this type into an iterator in a specified way.
+#[allow(clippy::module_name_repetitions)]
+pub trait IntoIntoAddress {
+    /// Iterator converted from this type in a specified way.
+    type IntoAddr: Iterator<Item = u8>;
+    /// Convert from this type into an iterator in a specified way.
+    fn into_into_addr(self) -> Self::IntoAddr;
+}
+
+impl<'s> IntoIntoAddress for &'s str {
+    type IntoAddr = core::str::Bytes<'s>;
+    fn into_into_addr(self) -> Self::IntoAddr {
+        self.bytes()
+    }
+}
+
+#[allow(unused_qualifications)]
+impl IntoIntoAddress for alloc::string::String {
+    type IntoAddr = alloc::vec::IntoIter<u8>;
+    fn into_into_addr(self) -> Self::IntoAddr {
+        self.into_bytes().into_iter()
+    }
+}
+
+/// Is this a valid ASCII character that's not blacklisted in the OSC spec?
+#[inline]
+#[must_use]
+pub const fn valid_address_character(c: u8) -> bool {
+    match c {
+        b' ' | b'#' | b'*' | b',' | b'/' | b'?' | b'[' | b']' | b'{' | b'}' => false,
+        _ => c.is_ascii(),
+    }
+}
+
 /// Fuse a list of strings into an OSC address by interspersing with `/`.
 #[allow(clippy::module_name_repetitions)]
-pub trait IntoAddress<'s>: Sized + IntoIterator<Item = &'s str>
+pub trait IntoAddress: Sized + IntoIterator
 where
+    Self::Item: IntoIntoAddress,
     Self::IntoIter: Clone,
+    <Self::Item as IntoIntoAddress>::IntoAddr: Clone,
 {
     /// Fuse a list of strings into an OSC address by interspersing with `/`.
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[inline(always)]
-    fn into_address(self) -> Result<Address<'s, Self::IntoIter>, AddressErr> {
-        let iter = self.into_iter();
+    #[allow(clippy::type_complexity)]
+    fn into_address(
+        self,
+    ) -> Result<
+        Address<
+            core::iter::Map<
+                Self::IntoIter,
+                fn(Self::Item) -> <Self::Item as IntoIntoAddress>::IntoAddr,
+            >,
+        >,
+        AddressErr,
+    > {
+        #[allow(clippy::as_conversions, clippy::as_underscore, trivial_casts)]
+        let iter = self
+            .into_iter()
+            .map(<Self::Item as IntoIntoAddress>::into_into_addr as _);
         if iter.clone().next().is_none() {
             return Err(AddressErr::Empty);
         }
         for s in iter.clone() {
-            for byte in s.bytes() {
-                match byte {
-                    b' ' | b'#' | b'*' | b',' | b'/' | b'?' | b'[' | b']' | b'{' | b'}' => {
-                        return Err(AddressErr::InvalidCharacter(byte))
-                    }
-                    _ => {}
+            for byte in s {
+                if !valid_address_character(byte) {
+                    return Err(AddressErr::InvalidCharacter(byte));
                 }
             }
         }
@@ -48,20 +93,35 @@ where
     }
 }
 
-impl<'s, I: IntoIterator<Item = &'s str>> IntoAddress<'s> for I where I::IntoIter: Clone {}
+impl<I: IntoIterator> IntoAddress for I
+where
+    I::Item: IntoIntoAddress,
+    I::IntoIter: Clone,
+    <I::Item as IntoIntoAddress>::IntoAddr: Clone,
+{
+}
 
 /// An OSC address, e.g. `/lighting/right/...`
-#[derive(Clone, Debug)]
-pub struct Address<'s, I: Iterator<Item = &'s str>> {
+#[derive(Clone)]
+#[allow(missing_debug_implementations)]
+pub struct Address<I: Iterator>
+where
+    I::Item: IntoIterator<Item = u8>,
+    <I::Item as IntoIterator>::IntoIter: Clone,
+{
     /// Iterator over path segments.
     iter: I,
     /// Iterator over bytes in only the current path segment.
-    bytes: Option<Bytes<'s>>,
+    bytes: Option<<I::Item as IntoIterator>::IntoIter>,
     /// Whether the next item should be a slash.
     slash: bool,
 }
 
-impl<'s, I: Iterator<Item = &'s str>> Address<'s, I> {
+impl<I: Iterator> Address<I>
+where
+    I::Item: IntoIterator<Item = u8>,
+    <I::Item as IntoIterator>::IntoIter: Clone,
+{
     /// Initialize a new address given an iterator over strings.
     #[inline]
     pub const fn new(iter: I) -> Self {
@@ -73,14 +133,22 @@ impl<'s, I: Iterator<Item = &'s str>> Address<'s, I> {
     }
 }
 
-impl<'s, I: Iterator<Item = &'s str> + Default> Default for Address<'s, I> {
+impl<I: Iterator + Default> Default for Address<I>
+where
+    I::Item: IntoIterator<Item = u8>,
+    <I::Item as IntoIterator>::IntoIter: Clone,
+{
     #[inline]
     fn default() -> Self {
         Self::new(I::default())
     }
 }
 
-impl<'s, I: Iterator<Item = &'s str>> Iterator for Address<'s, I> {
+impl<I: Iterator> Iterator for Address<I>
+where
+    I::Item: IntoIterator<Item = u8>,
+    <I::Item as IntoIterator>::IntoIter: Clone,
+{
     type Item = u8;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -90,7 +158,7 @@ impl<'s, I: Iterator<Item = &'s str>> Iterator for Address<'s, I> {
                 let (bytes, ch) = self
                     .iter
                     .next()
-                    .map_or_else(|| (None, b'\0'), |s| (Some(s.bytes()), b'/'));
+                    .map_or_else(|| (None, b'\0'), |s| (Some(s.into_iter()), b'/'));
                 self.bytes = bytes;
                 Some(ch)
             } else {
@@ -102,5 +170,37 @@ impl<'s, I: Iterator<Item = &'s str>> Iterator for Address<'s, I> {
                 some
             };
         }
+    }
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[cfg(any(test, feature = "quickcheck"))]
+pub type QCAddress =
+    Address<core::iter::Map<alloc::vec::IntoIter<String>, fn(String) -> alloc::vec::IntoIter<u8>>>;
+
+#[allow(clippy::unwrap_used)]
+#[cfg(any(test, feature = "quickcheck"))]
+impl quickcheck::Arbitrary for QCAddress {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut vv: Vec<String> = alloc::vec::Vec::arbitrary(g);
+        for v in &mut vv {
+            v.retain(|c| u8::try_from(c).map_or(false, valid_address_character));
+        }
+        vv.into_address().unwrap()
+    }
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(
+            self.iter
+                .clone()
+                .map(|v| String::from_utf8(v.collect()).unwrap())
+                .collect::<Vec<_>>()
+                .shrink()
+                .map(|mut vv| {
+                    for v in &mut vv {
+                        v.retain(|c| u8::try_from(c).map_or(false, valid_address_character));
+                    }
+                    vv.into_address().unwrap()
+                }),
+        )
     }
 }

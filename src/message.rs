@@ -6,37 +6,46 @@
 
 //! Typed data to a specified address.
 
-use crate::{address::Address, tuple::Tuple, AddressErr, Batch, Batched, IntoAddress};
+use crate::{address::Address, tuple::Tuple, Batch, Batched};
 use core::iter::{once, Chain, Once};
 
 /// Typed data to a specified address.
 #[repr(transparent)]
-#[derive(Clone, Debug)]
-#[allow(clippy::type_complexity)]
-pub struct Message<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple>(
+#[derive(Clone)]
+#[allow(clippy::type_complexity, missing_debug_implementations)]
+pub struct Message<A: Iterator, T: Tuple>(
     Chain<
-        Chain<Batched<Address<'a, A>>, Batched<Chain<Chain<Once<u8>, T::TypeTagIter>, Once<u8>>>>,
+        Chain<Batched<Address<A>>, Batched<Chain<Chain<Once<u8>, T::TypeTagIter>, Once<u8>>>>,
         T::Chained,
     >,
-);
+)
+where
+    A::Item: Clone + IntoIterator<Item = u8>,
+    <A::Item as IntoIterator>::IntoIter: Clone;
 
-impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Message<'a, A, T> {
+impl<A: Iterator, T: Tuple> Message<A, T>
+where
+    A::Item: Clone + Iterator<Item = u8>,
+{
     /// Prefer `.into_osc()`, but if you already have OSC data, this is fine.
     /// # Errors
     /// If the address is invalid (according to the OSC spec).
     #[inline]
-    pub fn new<I: IntoAddress<'a, IntoIter = A>>(address: I, data: T) -> Result<Self, AddressErr> {
-        Ok(Self(
+    pub fn new(address: Address<A>, data: T) -> Self {
+        Self(
             address
-                .into_address()?
                 .batch()
                 .chain(once(b',').chain(data.type_tag()).chain(once(b'\0')).batch())
                 .chain(data.chain()),
-        ))
+        )
     }
 }
 
-impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Iterator for Message<'a, A, T> {
+impl<A: Iterator, T: Tuple> Iterator for Message<A, T>
+where
+    A::Item: Iterator<Item = u8>,
+    <A::Item as IntoIterator>::IntoIter: Clone,
+{
     type Item = u8;
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,9 +53,24 @@ impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> Iterator for Message<'a,
     }
 }
 
-// TODO:
-// #[cfg(any(test, feature = "quickcheck"))]
-// impl<'a, A: Iterator<Item = &'a str> + Clone, T: Tuple> quickcheck::Arbitrary
-//     for Message<'a, A, T>
-// {
-// }
+#[allow(unused_qualifications)]
+#[cfg(any(test, feature = "quickcheck"))]
+impl quickcheck::Arbitrary
+    for Message<
+        core::iter::Map<
+            alloc::vec::IntoIter<alloc::string::String>,
+            fn(alloc::string::String) -> alloc::vec::IntoIter<u8>,
+        >,
+        alloc::vec::Vec<crate::Dynamic>,
+    >
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        use crate::IntoAddress;
+        // TODO: explicitly avoid `Err` instead of just resampling (could take a while on long addresses)
+        loop {
+            let r = alloc::vec::Vec::<alloc::string::String>::arbitrary(g).into_address();
+            let Ok(addr) = r else { continue; };
+            return Message::new(addr, alloc::vec::Vec::arbitrary(g));
+        }
+    }
+}

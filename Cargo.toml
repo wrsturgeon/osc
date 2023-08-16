@@ -21,13 +21,13 @@ categories = [
 # none
 
 # Optional dependencies:
-# quickcheck = { version = "1.0.3", optional = true }
+quickcheck = { version = "1.0.3", optional = true }
 
 [dev-dependencies]
-# quickcheck = "1.0.3"
+quickcheck = "1.0.3"
 
 [features]
 default = ["alloc", "nonstandard-types"]
 alloc = []
 nonstandard-types = []
-# quickcheck = ["dep:quickcheck"]
+quickcheck = ["dep:quickcheck"]

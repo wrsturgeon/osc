@@ -93,7 +93,7 @@ mod tuple;
 mod dynamic;
 
 pub use {
-    address::{Address, AddressErr, IntoAddress},
+    address::{valid_address_character, Address, AddressErr, IntoAddress},
     atomic::{Atomic, Blob, Float, Integer, IntoAtomic, String},
     batch::{Batch, Batched},
     into_osc::IntoOsc,
@@ -106,6 +106,9 @@ pub use {
     atomic::{DynamicBlob, DynamicString},
     dynamic::Dynamic,
 };
+
+#[cfg(any(test, feature = "quickcheck"))]
+pub use address::QCAddress;
 
 #[cfg(test)]
 mod test;

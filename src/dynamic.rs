@@ -70,3 +70,34 @@ impl TryFrom<Dynamic> for DynamicBlob {
         }
     }
 }
+
+#[cfg(any(test, feature = "quickcheck"))]
+impl quickcheck::Arbitrary for Dynamic {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        #[allow(
+            clippy::as_conversions,
+            clippy::as_underscore,
+            clippy::shadow_unrelated,
+            trivial_casts
+        )]
+        let opt = g.choose(&[
+            (|g| Self::Integer(Integer::arbitrary(g))) as fn(_) -> _,
+            (|g| Self::Float(Float::arbitrary(g))) as _,
+            (|g| Self::String(DynamicString::arbitrary(g))) as _,
+            (|g| Self::Blob(DynamicBlob::arbitrary(g))) as _,
+        ]);
+        #[allow(unsafe_code)]
+        // SAFETY:
+        // QuickCheck guarantees that a non-empty slice will yield `Some(_)`
+        let f = unsafe { opt.unwrap_unchecked() };
+        f(g)
+    }
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        match self {
+            &Self::Integer(ref i) => Box::new(i.shrink().map(Self::Integer)),
+            &Self::Float(ref f) => Box::new(f.shrink().map(Self::Float)),
+            &Self::String(ref s) => Box::new(s.shrink().map(Self::String)),
+            &Self::Blob(ref b) => Box::new(b.shrink().map(Self::Blob)),
+        }
+    }
+}

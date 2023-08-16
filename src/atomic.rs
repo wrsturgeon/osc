@@ -358,3 +358,64 @@ impl IntoAtomic for alloc::string::String {
 impl IntoAtomic for alloc::vec::Vec<u8> {
     type AsAtomic = DynamicBlob;
 }
+
+//////////////// QuickCheck implementations
+
+#[cfg(any(test, feature = "quickcheck"))]
+mod qc {
+    use super::*;
+
+    impl quickcheck::Arbitrary for Integer {
+        #[inline]
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            i32::arbitrary(g).into_atomic()
+        }
+        #[inline]
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+        }
+    }
+
+    impl quickcheck::Arbitrary for Float {
+        #[inline]
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            f32::arbitrary(g).into_atomic()
+        }
+        #[inline]
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+        }
+    }
+
+    impl quickcheck::Arbitrary for DynamicString {
+        #[inline]
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            alloc::string::String::arbitrary(g).into_atomic()
+        }
+        #[inline]
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            Box::new(
+                self.clone()
+                    .into_rust()
+                    .shrink()
+                    .map(IntoAtomic::into_atomic),
+            )
+        }
+    }
+
+    impl quickcheck::Arbitrary for DynamicBlob {
+        #[inline]
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            alloc::vec::Vec::arbitrary(g).into_atomic()
+        }
+        #[inline]
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            Box::new(
+                self.clone()
+                    .into_rust()
+                    .shrink()
+                    .map(IntoAtomic::into_atomic),
+            )
+        }
+    }
+}

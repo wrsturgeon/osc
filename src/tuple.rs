@@ -183,3 +183,22 @@ impl_tuple!(
     G,
     H, //
 );
+
+#[cfg(any(test, feature = "alloc"))]
+#[allow(unused_qualifications)]
+impl Tuple for alloc::vec::Vec<crate::Dynamic> {
+    type TypeTagIter = alloc::vec::IntoIter<u8>;
+    type Chained = core::iter::Flatten<alloc::vec::IntoIter<crate::Dynamic>>;
+    #[inline]
+    fn type_tag(&self) -> Self::TypeTagIter {
+        self.iter()
+            .map(crate::Dynamic::type_tag)
+            .collect::<alloc::vec::Vec<_>>()
+            .into_iter()
+    }
+    #[inline]
+    #[allow(clippy::as_underscore, trivial_casts)]
+    fn chain(self) -> Self::Chained {
+        self.into_iter().flatten()
+    }
+}
