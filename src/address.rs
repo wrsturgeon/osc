@@ -6,6 +6,8 @@
 
 //! An OSC address, e.g. `/lighting/right/...`
 
+use crate::{Batch, Batched};
+
 /// Error in an OSC address.
 #[non_exhaustive]
 #[allow(clippy::module_name_repetitions)]
@@ -122,10 +124,12 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress> IntoIterator
     for Address<Path, Method>
 {
     type Item = u8;
-    type IntoIter = Iter<
-        core::iter::Chain<
-            core::iter::Map<Path::IntoIter, fn(Method) -> Method::IntoAddr>,
-            core::iter::Once<Method::IntoAddr>,
+    type IntoIter = Batched<
+        Iter<
+            core::iter::Chain<
+                core::iter::Map<Path::IntoIter, fn(Method) -> Method::IntoAddr>,
+                core::iter::Once<Method::IntoAddr>,
+            >,
         >,
     >;
     #[inline]
@@ -140,6 +144,7 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress> IntoIterator
             bytes: None,
             slash: true,
         }
+        .batch()
     }
 }
 

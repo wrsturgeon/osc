@@ -85,13 +85,28 @@ mod from_the_spec {
 #[cfg(feature = "quickcheck")]
 mod prop {
     use {
-        crate::{Address, Decode, Message},
+        crate::{Address, Aligned4B, Decode, Message},
         quickcheck::quickcheck,
     };
     quickcheck! {
 
         #[allow(unused_variables)]
         fn message_doesnt_panic(message: Message<Vec<String>>) -> bool { true }
+
+        fn four_byte_decode(v: Vec<u8>) -> bool {
+            let size = v.len();
+            let mut iter = v.into_iter();
+            for _ in 0..(size >> 2) {
+                if Aligned4B::decode(&mut iter).is_err() {
+                    return false;
+                }
+            }
+            if (size % 4) == 0 {
+                iter.next().is_none()
+            } else {
+                Aligned4B::decode(&mut iter).is_err()
+            }
+        }
 
         fn address_roundtrip(address: Address<Vec<String>, String>) -> bool {
             let redecoded = Address::decode(&mut address.clone().into_iter());
