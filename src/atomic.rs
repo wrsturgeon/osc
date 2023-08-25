@@ -6,20 +6,22 @@
 
 //! Integer, float, string, or blob.
 
-use crate::{Batch, Batched, IntoOsc};
+use crate::{Aligned4B, Batch, Batched, Decode, IntoOsc, Misaligned4B, Tag};
 use core::iter::{once, Chain, Copied, Once};
 
 #[cfg(feature = "alloc")]
-use crate::Dynamic;
+use crate::Data;
 
 //////////////// Trait definition
 
 /// Integer, float, string, or blob.
 pub trait Atomic:
-    From<Self::AsRust> + Into<Self::AsRust> + IntoIterator<Item = u8, IntoIter = Batched<Self::Iter>>
+    TryFrom<Self::AsRust> + Into<Self::AsRust> + IntoIterator<Item = u8, IntoIter = Batched<Self::Iter>>
+where
+    InvalidContents: From<<Self as TryFrom<Self::AsRust>>::Error>,
 {
     /// OSC type tag: a single character denoting this type.
-    fn type_tag(&self) -> u8;
+    fn type_tag(&self) -> Tag;
     /// Rust representation of this OSC type (e.g. `Integer` -> `i32`).
     type AsRust: IntoAtomic<AsAtomic = Self, AsOsc = (Self,)>;
     /// Convert from OSC to a value Rust can work with.
@@ -28,9 +30,11 @@ pub trait Atomic:
         self.into()
     }
     /// Convert from Rust to a value OSC can work with.
+    /// # Errors
+    /// If the data is invalid (e.g. a non-ASCII string).
     #[inline(always)]
-    fn from_rust(value: Self::AsRust) -> Self {
-        value.into()
+    fn from_rust(value: Self::AsRust) -> Result<Self, Self::Error> {
+        value.try_into()
     }
     /// Iterator over the OSC-formatted value.
     type Iter: Iterator<Item = u8>;
@@ -65,56 +69,56 @@ pub struct DynamicBlob(alloc::vec::Vec<u8>);
 
 impl Atomic for Integer {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b'i'
+    fn type_tag(&self) -> Tag {
+        Tag::Integer
     }
     type AsRust = i32;
     type Iter = core::array::IntoIter<u8, 4>;
 }
 impl Atomic for Float {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b'f'
+    fn type_tag(&self) -> Tag {
+        Tag::Float
     }
     type AsRust = f32;
     type Iter = core::array::IntoIter<u8, 4>;
 }
 impl<'s> Atomic for String<'s> {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b's'
+    fn type_tag(&self) -> Tag {
+        Tag::String
     }
     type AsRust = &'s str;
     type Iter = Chain<core::str::Bytes<'s>, Once<u8>>;
 }
 impl<'b> Atomic for Blob<'b> {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b'b'
+    fn type_tag(&self) -> Tag {
+        Tag::Blob
     }
     type AsRust = &'b [u8];
     type Iter = Copied<core::slice::Iter<'b, u8>>;
 }
 
 #[cfg(feature = "alloc")]
-impl Atomic for Dynamic {
+impl Atomic for Data {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
+    fn type_tag(&self) -> Tag {
         match self {
-            &Dynamic::Integer(ref i) => i.type_tag(),
-            &Dynamic::Float(ref f) => f.type_tag(),
-            &Dynamic::String(ref s) => s.type_tag(),
-            &Dynamic::Blob(ref b) => b.type_tag(),
+            &Data::Integer(ref i) => i.type_tag(),
+            &Data::Float(ref f) => f.type_tag(),
+            &Data::String(ref s) => s.type_tag(),
+            &Data::Blob(ref b) => b.type_tag(),
         }
     }
-    type AsRust = Dynamic;
+    type AsRust = Data;
     type Iter = alloc::vec::IntoIter<u8>;
 }
 #[cfg(feature = "alloc")]
 impl Atomic for DynamicString {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b's'
+    fn type_tag(&self) -> Tag {
+        Tag::String
     }
     type AsRust = alloc::string::String;
     type Iter = Chain<alloc::vec::IntoIter<u8>, Once<u8>>;
@@ -122,20 +126,49 @@ impl Atomic for DynamicString {
 #[cfg(feature = "alloc")]
 impl Atomic for DynamicBlob {
     #[inline(always)]
-    fn type_tag(&self) -> u8 {
-        b'b'
+    fn type_tag(&self) -> Tag {
+        Tag::Blob
     }
     #[allow(unused_qualifications)]
     type AsRust = alloc::vec::Vec<u8>;
     type Iter = alloc::vec::IntoIter<u8>;
 }
 
-//////////////// `To`/`From` implementations
+//////////////// `From` implementations
 
-impl From<i32> for Integer {
+/// Invalid data in conversion from Rust to OSC (e.g. a non-ASCII string).
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum InvalidContents {
+    /// Non-ASCII character in a Rust string.
+    NonAscii,
+    /// Null byte in an otherwise normal ASCII string.
+    NullInString,
+}
+
+impl From<core::convert::Infallible> for InvalidContents {
     #[inline(always)]
-    fn from(value: i32) -> Self {
-        Self(value.to_be_bytes())
+    fn from(_: core::convert::Infallible) -> Self {
+        #[cfg(test)]
+        #[allow(clippy::unreachable)]
+        {
+            unreachable!()
+        }
+        #[cfg(not(test))]
+        #[allow(unsafe_code)]
+        // SAFETY:
+        // Input to this function can never be constructed.
+        unsafe {
+            core::hint::unreachable_unchecked()
+        }
+    }
+}
+
+impl TryFrom<i32> for Integer {
+    type Error = core::convert::Infallible;
+    #[inline(always)]
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(Self(value.to_be_bytes()))
     }
 }
 impl From<Integer> for i32 {
@@ -145,10 +178,11 @@ impl From<Integer> for i32 {
     }
 }
 
-impl From<f32> for Float {
+impl TryFrom<f32> for Float {
+    type Error = core::convert::Infallible;
     #[inline(always)]
-    fn from(value: f32) -> Self {
-        Self(value.to_be_bytes())
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Ok(Self(value.to_be_bytes()))
     }
 }
 impl From<Float> for f32 {
@@ -158,10 +192,17 @@ impl From<Float> for f32 {
     }
 }
 
-impl<'s> From<&'s str> for String<'s> {
+impl<'s> TryFrom<&'s str> for String<'s> {
+    type Error = InvalidContents;
     #[inline(always)]
-    fn from(value: &'s str) -> Self {
-        Self(value)
+    fn try_from(value: &'s str) -> Result<Self, Self::Error> {
+        if !value.is_ascii() {
+            Err(InvalidContents::NonAscii)
+        } else if value.contains('\0') {
+            Err(InvalidContents::NullInString)
+        } else {
+            Ok(Self(value))
+        }
     }
 }
 impl<'s> From<String<'s>> for &'s str {
@@ -171,16 +212,18 @@ impl<'s> From<String<'s>> for &'s str {
     }
 }
 
-impl<'b> From<&'b [u8]> for Blob<'b> {
+impl<'b> TryFrom<&'b [u8]> for Blob<'b> {
+    type Error = core::convert::Infallible;
     #[inline(always)]
-    fn from(value: &'b [u8]) -> Self {
-        Self(value)
+    fn try_from(value: &'b [u8]) -> Result<Self, Self::Error> {
+        Ok(Self(value))
     }
 }
-impl<'b, const N: usize> From<&'b [u8; N]> for Blob<'b> {
+impl<'b, const N: usize> TryFrom<&'b [u8; N]> for Blob<'b> {
+    type Error = core::convert::Infallible;
     #[inline(always)]
-    fn from(value: &'b [u8; N]) -> Self {
-        Self(value)
+    fn try_from(value: &'b [u8; N]) -> Result<Self, Self::Error> {
+        Ok(Self(value))
     }
 }
 impl<'b> From<Blob<'b>> for &'b [u8] {
@@ -191,10 +234,17 @@ impl<'b> From<Blob<'b>> for &'b [u8] {
 }
 
 #[cfg(feature = "alloc")]
-impl From<alloc::string::String> for DynamicString {
+impl TryFrom<alloc::string::String> for DynamicString {
+    type Error = InvalidContents;
     #[inline(always)]
-    fn from(value: alloc::string::String) -> Self {
-        Self(value)
+    fn try_from(value: alloc::string::String) -> Result<Self, Self::Error> {
+        if !value.is_ascii() {
+            Err(InvalidContents::NonAscii)
+        } else if value.contains('\0') {
+            Err(InvalidContents::NullInString)
+        } else {
+            Ok(Self(value))
+        }
     }
 }
 #[cfg(feature = "alloc")]
@@ -207,10 +257,11 @@ impl From<DynamicString> for alloc::string::String {
 
 #[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
-impl From<alloc::vec::Vec<u8>> for DynamicBlob {
+impl TryFrom<alloc::vec::Vec<u8>> for DynamicBlob {
+    type Error = core::convert::Infallible;
     #[inline(always)]
-    fn from(value: alloc::vec::Vec<u8>) -> Self {
-        Self(value)
+    fn try_from(value: alloc::vec::Vec<u8>) -> Result<Self, Self::Error> {
+        Ok(Self(value))
     }
 }
 #[cfg(feature = "alloc")]
@@ -261,17 +312,17 @@ impl IntoIterator for Blob<'_> {
 }
 
 #[cfg(feature = "alloc")]
-impl IntoIterator for Dynamic {
+impl IntoIterator for Data {
     type IntoIter = Batched<<Self as Atomic>::Iter>;
     type Item = u8;
     #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
         #[allow(unused_qualifications)]
         let v: alloc::vec::Vec<_> = match self {
-            Dynamic::Integer(i) => i.into_iter().collect(),
-            Dynamic::Float(f) => f.into_iter().collect(),
-            Dynamic::String(s) => s.into_iter().collect(),
-            Dynamic::Blob(b) => b.into_iter().collect(),
+            Data::Integer(i) => i.into_iter().collect(),
+            Data::Float(f) => f.into_iter().collect(),
+            Data::String(s) => s.into_iter().collect(),
+            Data::Blob(b) => b.into_iter().collect(),
         };
         v.into_iter().batch()
     }
@@ -297,6 +348,105 @@ impl IntoIterator for DynamicBlob {
     }
 }
 
+//////////////// `Decode` implementations
+
+impl Decode for Integer {
+    type Error = core::convert::Infallible;
+    #[inline(always)]
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        Aligned4B::decode(iter).map(|Aligned4B(a, b, c, d, _)| Self([a, b, c, d]))
+    }
+}
+
+impl Decode for Float {
+    type Error = core::convert::Infallible;
+    #[inline(always)]
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        Aligned4B::decode(iter).map(|Aligned4B(a, b, c, d, _)| Self([a, b, c, d]))
+    }
+}
+
+#[non_exhaustive]
+#[cfg(feature = "alloc")]
+/// Returned a null terminator then the rest of the 4-byte chunk was not null.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum StringDecodeErr {
+    /// Not an ASCII character.
+    NonAscii(u8),
+    /// Returned a null terminator then the rest of the 4-byte chunk was not null.
+    NullThenNonNull,
+}
+
+#[cfg(feature = "alloc")]
+impl core::fmt::Display for StringDecodeErr {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            &Self::NonAscii(c) => {
+                write!(
+                    f,
+                    "Matched a non-ASCII character in an alleged OSC string: '{}'.",
+                    core::ascii::escape_default(c)
+                )
+            }
+            &Self::NullThenNonNull => write!(
+                f,
+                "Matched a string's null terminator, \
+                but the following padding bytes were non-null.",
+            ),
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl Decode for DynamicString {
+    type Error = StringDecodeErr;
+    #[inline]
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        let mut s = alloc::string::String::new();
+        loop {
+            let bytes = Aligned4B::decode(iter)?;
+            if bytes.0 == b'\0' {
+                if bytes.1 != b'\0' || bytes.2 != b'\0' || bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(StringDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(s));
+            }
+            if !bytes.0.is_ascii() {
+                return Err(Misaligned4B::Other(StringDecodeErr::NonAscii(bytes.0)));
+            }
+            s.push(char::from(bytes.0));
+            if bytes.1 == b'\0' {
+                if bytes.2 != b'\0' || bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(StringDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(s));
+            }
+            if !bytes.1.is_ascii() {
+                return Err(Misaligned4B::Other(StringDecodeErr::NonAscii(bytes.1)));
+            }
+            s.push(char::from(bytes.1));
+            if bytes.2 == b'\0' {
+                if bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(StringDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(s));
+            }
+            if !bytes.2.is_ascii() {
+                return Err(Misaligned4B::Other(StringDecodeErr::NonAscii(bytes.2)));
+            }
+            s.push(char::from(bytes.2));
+            if bytes.3 == b'\0' {
+                return Ok(Self(s));
+            }
+            if !bytes.3.is_ascii() {
+                return Err(Misaligned4B::Other(StringDecodeErr::NonAscii(bytes.3)));
+            }
+            s.push(char::from(bytes.3));
+        }
+    }
+}
+
 //////////////// Types that one-to-one map to atomic OSC types
 
 /// Whitelists.
@@ -309,7 +459,7 @@ mod sealed {
     impl IntoAtomic for &[u8] {}
 
     #[cfg(feature = "alloc")]
-    impl IntoAtomic for crate::Dynamic {}
+    impl IntoAtomic for crate::Data {}
     #[allow(unused_qualifications)]
     #[cfg(feature = "alloc")]
     impl IntoAtomic for alloc::string::String {}
@@ -320,12 +470,17 @@ mod sealed {
 
 /// Rust types that map 1-to-1 to atomic OSC types.
 #[allow(clippy::module_name_repetitions)]
-pub trait IntoAtomic: sealed::IntoAtomic + IntoOsc + Sized {
+pub trait IntoAtomic: sealed::IntoAtomic + IntoOsc + Sized
+where
+    InvalidContents: From<<Self::AsAtomic as TryFrom<Self>>::Error>,
+{
     /// The OSC type that directly corresponds to this Rust type.
     type AsAtomic: Atomic<AsRust = Self>;
     /// Convert directly into the OSC representation of this Rust type.
+    /// # Errors
+    /// If the data is invalid (e.g. a non-ASCII string).
     #[inline(always)]
-    fn into_atomic(self) -> Self::AsAtomic {
+    fn into_atomic(self) -> Result<Self::AsAtomic, <Self::AsAtomic as TryFrom<Self>>::Error> {
         Self::AsAtomic::from_rust(self)
     }
 }
@@ -347,8 +502,8 @@ impl<'b> IntoAtomic for &'b [u8] {
 }
 
 #[cfg(feature = "alloc")]
-impl IntoAtomic for Dynamic {
-    type AsAtomic = Dynamic;
+impl IntoAtomic for Data {
+    type AsAtomic = Data;
 }
 
 #[cfg(feature = "alloc")]
@@ -365,7 +520,7 @@ impl IntoAtomic for alloc::vec::Vec<u8> {
 //////////////// QuickCheck implementations
 
 #[cfg(feature = "quickcheck")]
-#[allow(unused_qualifications)]
+#[allow(clippy::unwrap_used, unused_qualifications)]
 mod prop {
     //! Implementations of `quickcheck::Arbitrary`.
 
@@ -374,29 +529,39 @@ mod prop {
     impl quickcheck::Arbitrary for Integer {
         #[inline]
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            i32::arbitrary(g).into_atomic()
+            i32::arbitrary(g).into_atomic().unwrap()
         }
         #[inline]
         fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
-            alloc::boxed::Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+            alloc::boxed::Box::new(
+                self.into_rust()
+                    .shrink()
+                    .filter_map(|e| e.into_atomic().ok()),
+            )
         }
     }
 
     impl quickcheck::Arbitrary for Float {
         #[inline]
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            f32::arbitrary(g).into_atomic()
+            f32::arbitrary(g).into_atomic().unwrap()
         }
         #[inline]
         fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
-            alloc::boxed::Box::new(self.into_rust().shrink().map(IntoAtomic::into_atomic))
+            alloc::boxed::Box::new(
+                self.into_rust()
+                    .shrink()
+                    .filter_map(|e| e.into_atomic().ok()),
+            )
         }
     }
 
     impl quickcheck::Arbitrary for DynamicString {
         #[inline]
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            alloc::string::String::arbitrary(g).into_atomic()
+            let mut s = alloc::string::String::arbitrary(g);
+            s.retain(|c| c.is_ascii() && c != '\0');
+            s.into_atomic().unwrap()
         }
         #[inline]
         fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
@@ -404,7 +569,7 @@ mod prop {
                 self.clone()
                     .into_rust()
                     .shrink()
-                    .map(IntoAtomic::into_atomic),
+                    .filter_map(|e| e.into_atomic().ok()),
             )
         }
     }
@@ -413,7 +578,7 @@ mod prop {
     impl quickcheck::Arbitrary for DynamicBlob {
         #[inline]
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            alloc::vec::Vec::arbitrary(g).into_atomic()
+            alloc::vec::Vec::arbitrary(g).into_atomic().unwrap()
         }
         #[inline]
         fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
@@ -421,7 +586,7 @@ mod prop {
                 self.clone()
                     .into_rust()
                     .shrink()
-                    .map(IntoAtomic::into_atomic),
+                    .filter_map(|e| e.into_atomic().ok()),
             )
         }
     }

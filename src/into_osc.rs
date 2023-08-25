@@ -7,12 +7,12 @@
 //! Format a Rust type as an OSC message.
 
 use crate::{
-    address::IntoIntoAddress, tuple::Tuple, AddressErr, Blob, Float, Integer, IntoAddress,
-    IntoAtomic, Message, String,
+    AddressErr, Blob, Float, Integer, IntoAddress, IntoAtomic, IntoIntoAddress, InvalidContents,
+    Message, String, Tuple,
 };
 
 #[cfg(feature = "alloc")]
-use crate::{Dynamic, DynamicBlob, DynamicString};
+use crate::{Data, Dynamic, DynamicBlob, DynamicString};
 
 /// Format a Rust type as an OSC message.
 pub trait IntoOsc {
@@ -39,7 +39,9 @@ impl IntoOsc for i32 {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self
+                .into_atomic()
+                .map_err(|e| AddressErr::StringErr(e.into()))?,),
         ))
     }
 }
@@ -54,7 +56,9 @@ impl IntoOsc for f32 {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self
+                .into_atomic()
+                .map_err(|e| AddressErr::StringErr(e.into()))?,),
         ))
     }
 }
@@ -69,7 +73,7 @@ impl<'s> IntoOsc for &'s str {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self.into_atomic().map_err(AddressErr::StringErr)?,),
         ))
     }
 }
@@ -84,7 +88,9 @@ impl<'b> IntoOsc for &'b [u8] {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self
+                .into_atomic()
+                .map_err(|e| AddressErr::StringErr(e.into()))?,),
         ))
     }
 }
@@ -104,7 +110,10 @@ impl IntoOsc for () {
 /// Implement `IntoOsc` for a tuple of types, each of which implement `IntoAtomic`.
 macro_rules! impl_for_tuple {
     ($($id:ident),+) => {
-        impl<$($id: IntoAtomic),+> IntoOsc for ($($id),+,) {
+        impl<$($id: IntoAtomic),+> IntoOsc for ($($id),+,)
+        where
+            $(InvalidContents: From<<$id::AsAtomic as TryFrom<$id>>::Error>),+,
+        {
             type AsOsc = ($($id::AsAtomic),+,);
             #[inline(always)]
             #[allow(non_snake_case)]
@@ -114,7 +123,7 @@ macro_rules! impl_for_tuple {
                 method: Method,
             ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
                 let ($($id),+,) = self;
-                Ok(Message::new(path.into_address(method)?, ($($id.into_atomic()),+,)))
+                Ok(Message::new(path.into_address(method)?, ($($id.into_atomic().map_err(|e| AddressErr::StringErr(e.into()))?),+,)))
             }
         }
     };
@@ -130,8 +139,8 @@ impl_for_tuple!(A, B, C, D, E, F, G);
 impl_for_tuple!(A, B, C, D, E, F, G, H);
 
 #[cfg(feature = "alloc")]
-impl IntoOsc for Dynamic {
-    type AsOsc = (Dynamic,);
+impl IntoOsc for Data {
+    type AsOsc = (Data,);
     #[inline(always)]
     fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
         self,
@@ -139,6 +148,19 @@ impl IntoOsc for Dynamic {
         method: Method,
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(path.into_address(method)?, (self,)))
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl IntoOsc for Dynamic {
+    type AsOsc = Dynamic;
+    #[inline(always)]
+    fn into_osc<Path: IntoAddress<Method>, Method: IntoIntoAddress>(
+        self,
+        path: Path,
+        method: Method,
+    ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
+        Ok(Message::new(path.into_address(method)?, self))
     }
 }
 
@@ -153,7 +175,7 @@ impl IntoOsc for alloc::string::String {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self.into_atomic().map_err(AddressErr::StringErr)?,),
         ))
     }
 }
@@ -170,7 +192,9 @@ impl IntoOsc for alloc::vec::Vec<u8> {
     ) -> Result<Message<Path, Method, Self::AsOsc>, AddressErr> {
         Ok(Message::new(
             path.into_address(method)?,
-            (self.into_atomic(),),
+            (self
+                .into_atomic()
+                .map_err(|e| AddressErr::StringErr(e.into()))?,),
         ))
     }
 }

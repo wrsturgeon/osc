@@ -9,7 +9,7 @@
 use crate::{
     address::{Address, IntoIntoAddress},
     tuple::Tuple,
-    Batch, Batched,
+    Batch, Batched, Tag,
 };
 use core::iter::{once, Chain, Once};
 
@@ -24,7 +24,7 @@ type MethodDefault = alloc::string::String;
 /// Default type parameter for the data of a message.
 #[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
-type DataDefault = alloc::vec::Vec<crate::Dynamic>;
+type DataDefault = crate::Dynamic;
 
 /// Default type parameter for the path of a message.
 #[cfg(not(feature = "alloc"))]
@@ -68,18 +68,21 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple> In
     type IntoIter = Chain<
         Chain<
             <Address<Path, Method> as IntoIterator>::IntoIter,
-            Batched<Chain<Chain<Once<u8>, Data::TypeTagIter>, Once<u8>>>,
+            Batched<
+                Chain<Chain<Once<u8>, core::iter::Map<Data::TypeTagIter, fn(Tag) -> u8>>, Once<u8>>,
+            >,
         >,
         Data::Chained,
     >;
     #[inline]
+    #[allow(clippy::as_conversions, clippy::as_underscore, trivial_casts)]
     fn into_iter(self) -> Self::IntoIter {
         self.address
             .into_iter()
             // batched already
             .chain(
                 once(b',')
-                    .chain(self.data.type_tag())
+                    .chain(self.data.type_tag().map((|tag| tag as _) as fn(Tag) -> u8))
                     .chain(once(b'\0'))
                     .batch(),
             )
@@ -89,24 +92,21 @@ impl<Path: IntoIterator<Item = Method>, Method: IntoIntoAddress, Data: Tuple> In
 
 #[allow(unused_qualifications)]
 #[cfg(feature = "quickcheck")]
-impl quickcheck::Arbitrary
-    for Message<
-        alloc::vec::Vec<alloc::string::String>,
-        alloc::string::String,
-        alloc::vec::Vec<crate::Dynamic>,
-    >
-{
+impl quickcheck::Arbitrary for Message {
     #[inline]
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        Message::new(Address::arbitrary(g), alloc::vec::Vec::arbitrary(g))
+        Message::new(
+            Address::arbitrary(g),
+            crate::Dynamic(alloc::vec::Vec::arbitrary(g)),
+        )
     }
     #[inline]
     fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
-        alloc::boxed::Box::new(
-            self.address
-                .shrink()
-                .zip(self.data.shrink())
-                .map(|(address, data)| Self { address, data }),
-        )
+        alloc::boxed::Box::new(self.address.shrink().zip(self.data.0.shrink()).map(
+            |(address, data)| Self {
+                address,
+                data: crate::Dynamic(data),
+            },
+        ))
     }
 }

@@ -89,25 +89,28 @@ mod batch;
 mod decode;
 mod into_osc;
 mod message;
+mod tag;
 mod tuple;
 
 #[cfg(feature = "alloc")]
 mod dynamic;
 
 pub use {
-    address::{valid_address_character, Address, AddressErr, IntoAddress},
-    atomic::{Atomic, Blob, Float, Integer, IntoAtomic, String},
+    address::{valid_address_character, Address, AddressErr, IntoAddress, IntoIntoAddress},
+    atomic::{Atomic, Blob, Float, Integer, IntoAtomic, InvalidContents, String},
     batch::{Batch, Batched},
-    decode::{AddressDecodeErr, Aligned4B, Decode},
+    decode::{Aligned4B, Decode, Misaligned4B},
     into_osc::IntoOsc,
     message::Message,
+    tag::Tag,
     tuple::Tuple,
 };
 
 #[cfg(feature = "alloc")]
 pub use {
-    atomic::{DynamicBlob, DynamicString},
-    dynamic::Dynamic,
+    address::AddressDecodeErr,
+    atomic::{DynamicBlob, DynamicString, StringDecodeErr},
+    dynamic::{Data, Dynamic, DynamicDecodeErr, Tags},
 };
 
 #[cfg(test)]

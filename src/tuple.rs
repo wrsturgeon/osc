@@ -6,13 +6,13 @@
 
 //! Typed collection of data.
 
-use crate::Atomic;
+use crate::{Atomic, InvalidContents, Tag};
 use core::iter::Chain;
 
 /// Typed collection of data.
 pub trait Tuple {
     /// Iterator over characters in the formatted type tag.
-    type TypeTagIter: Iterator<Item = u8>;
+    type TypeTagIter: Iterator<Item = Tag>;
     /// Format an OSC type tag for this collection of types.
     fn type_tag(&self) -> Self::TypeTagIter;
     /// Chained iterators over each piece of data in this tuple.
@@ -22,7 +22,7 @@ pub trait Tuple {
 }
 
 impl Tuple for () {
-    type TypeTagIter = core::iter::Empty<u8>;
+    type TypeTagIter = core::iter::Empty<Tag>;
     #[inline(always)]
     fn type_tag(&self) -> Self::TypeTagIter {
         core::iter::empty()
@@ -37,12 +37,16 @@ impl Tuple for () {
 /// Implement `Tuple` for a tuple of types, each of which implement `Atomic`.
 macro_rules! impl_tuple {
     ($n:expr, $chain:ty, |$self:ident| $chain_expr:expr, $($id:ident),+,) => {
-        impl<$($id: Atomic),+> Tuple for ($($id),+,) {
-            type TypeTagIter = core::array::IntoIter<u8, $n>;
+        impl<$($id: Atomic),+> Tuple for ($($id),+,)
+        where
+            $(InvalidContents: From<<$id as TryFrom<$id::AsRust>>::Error>),+,
+        {
+            type TypeTagIter = core::array::IntoIter<Tag, $n>;
             #[inline(always)]
             fn type_tag(&self) -> Self::TypeTagIter {
                 #[allow(non_snake_case)]
                 let &($(ref $id),+,) = self;
+                #[allow(clippy::as_conversions, trivial_casts)]
                 [$($id.type_tag()),+].into_iter()
             }
             type Chained = $chain;
@@ -186,19 +190,20 @@ impl_tuple!(
 
 #[cfg(feature = "alloc")]
 #[allow(unused_qualifications)]
-impl Tuple for alloc::vec::Vec<crate::Dynamic> {
-    type TypeTagIter = alloc::vec::IntoIter<u8>;
-    type Chained = core::iter::Flatten<alloc::vec::IntoIter<crate::Dynamic>>;
+impl Tuple for crate::Dynamic {
+    type TypeTagIter = alloc::vec::IntoIter<Tag>;
+    type Chained = core::iter::Flatten<alloc::vec::IntoIter<crate::Data>>;
     #[inline]
     fn type_tag(&self) -> Self::TypeTagIter {
-        self.iter()
-            .map(crate::Dynamic::type_tag)
+        self.0
+            .iter()
+            .map(crate::Data::type_tag)
             .collect::<alloc::vec::Vec<_>>()
             .into_iter()
     }
     #[inline]
     #[allow(clippy::as_underscore, trivial_casts)]
     fn chain(self) -> Self::Chained {
-        self.into_iter().flatten()
+        self.0.into_iter().flatten()
     }
 }

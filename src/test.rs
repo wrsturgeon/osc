@@ -21,12 +21,16 @@ mod from_the_spec {
 
     #[test]
     fn string_osc() {
-        assert!("osc".into_atomic().into_iter().eq("osc\0".bytes()));
+        assert!("osc".into_atomic().unwrap().into_iter().eq("osc\0".bytes()));
     }
 
     #[test]
     fn string_data() {
-        assert!("data".into_atomic().into_iter().eq("data\0\0\0\0".bytes()));
+        assert!("data"
+            .into_atomic()
+            .unwrap()
+            .into_iter()
+            .eq("data\0\0\0\0".bytes()));
     }
 
     #[test]
@@ -35,28 +39,40 @@ mod from_the_spec {
     }
 
     #[test]
+    #[allow(clippy::as_conversions)]
     fn type_tag_iisfff() {
         assert!((
-            0.into_atomic(),
-            0.into_atomic(),
-            "".into_atomic(),
-            0.0.into_atomic(),
-            0.0.into_atomic(),
-            0.0.into_atomic(),
+            0.into_atomic().unwrap(),
+            0.into_atomic().unwrap(),
+            "".into_atomic().unwrap(),
+            0.0.into_atomic().unwrap(),
+            0.0.into_atomic().unwrap(),
+            0.0.into_atomic().unwrap(),
         )
             .type_tag()
+            .map(|tag| tag as u8)
             .eq("iisfff".bytes()));
     }
 
     #[test]
+    #[allow(clippy::as_conversions)]
     fn type_tag_none() {
-        assert!((0.0.into_atomic(),).type_tag().eq("f".bytes()));
+        assert!((0.0.into_atomic().unwrap(),)
+            .type_tag()
+            .map(|tag| tag as u8)
+            .eq("f".bytes()));
     }
 
     #[test]
+    #[allow(clippy::as_conversions)]
     fn type_tag_ibb() {
-        assert!((0.into_atomic(), (&[]).into_atomic(), (&[]).into_atomic())
+        assert!((
+            0.into_atomic().unwrap(),
+            (&[]).into_atomic().unwrap(),
+            (&[]).into_atomic().unwrap()
+        )
             .type_tag()
+            .map(|tag| tag as u8)
             .eq("ibb".bytes()));
     }
 
@@ -91,7 +107,7 @@ mod from_the_spec {
 #[cfg(feature = "quickcheck")]
 mod prop {
     use {
-        crate::{Address, Aligned4B, Decode, /* Dynamic, */ Message},
+        crate::{Address, Aligned4B, Decode, DynamicString, Message},
         quickcheck::quickcheck,
     };
     quickcheck! {
@@ -102,15 +118,31 @@ mod prop {
             let size = v.len();
             let mut iter = v.into_iter();
             for _ in 0..(size >> 2) {
-                if Aligned4B::decode(&mut iter).is_err() {
+                if Aligned4B::<core::convert::Infallible>::decode(&mut iter).is_err() {
                     return false;
                 }
             }
             if (size % 4) == 0 {
                 iter.next().is_none()
             } else {
-                Aligned4B::decode(&mut iter).is_err()
+                Aligned4B::<core::convert::Infallible>::decode(&mut iter).is_err()
             }
+        }
+
+        fn string_roundtrip(original: DynamicString) -> bool {
+            let decoded = DynamicString::decode(&mut original.clone().into_iter());
+            println!("{original:#?} --> {decoded:#?}");
+            decoded == Ok(original)
+        }
+
+        fn string_roundtrip_bytes(original: Vec<u8>) -> bool {
+            for _ in 0..(1 << 16) {
+                let Ok(decoded) = DynamicString::decode(&mut original.iter().copied()) else { continue; };
+                let recoded: Vec<_> = decoded.into_iter().collect();
+                println!("{original:#?} --> {recoded:#?}");
+                for (a, b) in recoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
+            }
+            true
         }
 
         fn address_roundtrip(original: Address<Vec<String>, String>) -> bool {
@@ -129,8 +161,8 @@ mod prop {
             true
         }
 
-        // fn data_roundtrip(original: Vec<Dynamic>) -> bool {
-        //     let decoded = Vec::<Dynamic>::decode(&mut original.clone().into_iter());
+        // fn data_roundtrip(original: Data) -> bool {
+        //     let decoded = Data::decode(&mut original.clone().into_iter());
         //     println!("{original:#?} --> {decoded:#?}");
         //     decoded == Ok(original)
         // }
