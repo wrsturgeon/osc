@@ -30,16 +30,6 @@ pub enum Misaligned4B<E> {
     Other(E),
 }
 
-// impl<A, B: From<A>> From<Misaligned4B<A>> for Misaligned4B<B> {
-//     fn from(value: Misaligned4B<A>) -> Self {
-//         match value {
-//             Misaligned4B::End => Misaligned4B::End,
-//             Misaligned4B::Misaligned => Misaligned4B::Misaligned,
-//             Misaligned4B::Other(o) => Misaligned4B::Other(o.into()),
-//         }
-//     }
-// }
-
 /// Four bytes read at the same time.
 /// Idea is that length should always be a multiple of 4.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

@@ -368,7 +368,7 @@ impl Decode for Float {
 
 #[non_exhaustive]
 #[cfg(feature = "alloc")]
-/// Returned a null terminator then the rest of the 4-byte chunk was not null.
+/// Any possible error while decoding an OSC string.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum StringDecodeErr {
     /// Not an ASCII character.
@@ -444,6 +444,69 @@ impl Decode for DynamicString {
             }
             s.push(char::from(bytes.3));
         }
+    }
+}
+
+#[non_exhaustive]
+#[cfg(feature = "alloc")]
+/// Any possible error while decoding an OSC blob.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum BlobDecodeErr {
+    /// The first bit of the OSC size is null, almost surely a misinterpretation.
+    NegativeSize,
+    /// Expected a null padding byte but found non-null.
+    TooLong,
+    /// Returned a null terminator then the rest of the 4-byte chunk was not null.
+    NullThenNonNull,
+}
+
+#[cfg(feature = "alloc")]
+impl core::fmt::Display for BlobDecodeErr {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            &Self::NegativeSize => write!(
+                f,
+                "OSC blob size is negative. \
+                This is almost surely a result of an earlier error that \
+                offset bytes and interpreted something else as the size."
+            ),
+            &Self::TooLong => write!(
+                f,
+                "OSC blob longer than claimed: \
+                expected a null padding byte but found non-null."
+            ),
+            &Self::NullThenNonNull => write!(
+                f,
+                "Matched a string's null terminator, \
+                but the following padding bytes were non-null.",
+            ),
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl Decode for DynamicBlob {
+    type Error = BlobDecodeErr;
+    #[inline]
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        #[allow(unsafe_code)]
+        // SAFETY:
+        // Infallible. Checked at compile time.
+        let size: u32 = i32::from(unsafe { Integer::decode(iter).unwrap_unchecked() })
+            .try_into()
+            .or(Err(Misaligned4B::Other(BlobDecodeErr::NegativeSize)))?;
+        #[allow(clippy::default_numeric_fallback)]
+        let chunks = size >> 3;
+        let mut v = alloc::vec::Vec::with_capacity(chunks.try_into().unwrap_or(0));
+        for _ in 0..chunks {
+            let bytes = Aligned4B::decode(iter)?;
+            v.push(bytes.0);
+            v.push(bytes.1);
+            v.push(bytes.2);
+            v.push(bytes.3);
+        }
+        Ok(Self(v))
     }
 }
 

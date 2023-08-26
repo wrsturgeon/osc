@@ -107,7 +107,7 @@ mod from_the_spec {
 #[cfg(feature = "quickcheck")]
 mod prop {
     use {
-        crate::{Address, Aligned4B, Decode, DynamicString, Message},
+        crate::{Address, Aligned4B, Decode, DynamicString, Message, Tag, Tags},
         quickcheck::quickcheck,
     };
     quickcheck! {
@@ -131,15 +131,16 @@ mod prop {
 
         fn string_roundtrip(original: DynamicString) -> bool {
             let decoded = DynamicString::decode(&mut original.clone().into_iter());
-            println!("{original:#?} --> {decoded:#?}");
+            // println!("{original:#?} --> {decoded:#?}");
             decoded == Ok(original)
         }
 
+        #[allow(clippy::needless_collect)]
         fn string_roundtrip_bytes(original: Vec<u8>) -> bool {
             for _ in 0..(1 << 16) {
                 let Ok(decoded) = DynamicString::decode(&mut original.iter().copied()) else { continue; };
                 let recoded: Vec<_> = decoded.into_iter().collect();
-                println!("{original:#?} --> {recoded:#?}");
+                // println!("{original:#?} --> {recoded:#?}");
                 for (a, b) in recoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
             }
             true
@@ -147,18 +148,36 @@ mod prop {
 
         fn address_roundtrip(original: Address<Vec<String>, String>) -> bool {
             let decoded = Address::decode(&mut original.clone().into_iter());
-            println!("{original:#?} --> {decoded:#?}");
+            // println!("{original:#?} --> {decoded:#?}");
             decoded == Ok(original)
         }
 
+        #[allow(clippy::needless_collect)]
         fn address_roundtrip_bytes(original: Vec<u8>) -> bool {
             for _ in 0..(1 << 16) {
                 let Ok(decoded) = Address::decode(&mut original.iter().copied()) else { continue; };
                 let recoded: Vec<_> = decoded.into_iter().collect();
-                println!("{original:#?} --> {recoded:#?}");
+                // println!("{original:#?} --> {recoded:#?}");
                 for (a, b) in recoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
             }
             true
+        }
+
+        #[allow(clippy::as_conversions)]
+        fn tag_byte_roundtrip(tag: Tag) -> bool {
+            (tag as u8).try_into() == Ok(tag)
+        }
+
+        #[allow(clippy::as_conversions)]
+        fn byte_tag_roundtrip(byte: u8) -> quickcheck::TestResult {
+            Tag::try_from(byte).map_or_else(|_| quickcheck::TestResult::passed(), |tag| quickcheck::TestResult::from_bool((tag as u8) == byte))
+        }
+
+        fn tags_byte_roundtrip(original: Tags) -> bool {
+            let mut encoded = original.clone().into_iter();
+            let decoded = Tags::decode(&mut encoded);
+            // println!("{original:#?} --> {decoded:#?}");
+            decoded == Ok(original)
         }
 
         // fn data_roundtrip(original: Data) -> bool {
@@ -193,5 +212,52 @@ mod prop_reduced {
         let recoded: Vec<_> = decoded.into_iter().collect();
         println!("{original:#?} --> {recoded:#?}");
         assert_eq!(recoded, original);
+    }
+}
+
+mod unit {
+    #[cfg(feature = "alloc")]
+    use crate::{Decode, Tag, Tags};
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn manual_tags_roundtrip() {
+        for original in [
+            Tags(vec![]),
+            Tags(vec![Tag::Integer]),
+            Tags(vec![Tag::Float]),
+            Tags(vec![Tag::String]),
+            Tags(vec![Tag::Blob]),
+            Tags(vec![Tag::Integer, Tag::Integer]),
+            Tags(vec![Tag::Integer, Tag::Float]),
+            Tags(vec![Tag::Integer, Tag::String]),
+            Tags(vec![Tag::Integer, Tag::Blob]),
+            Tags(vec![Tag::Float, Tag::Integer]),
+            Tags(vec![Tag::Float, Tag::Float]),
+            Tags(vec![Tag::Float, Tag::String]),
+            Tags(vec![Tag::Float, Tag::Blob]),
+            Tags(vec![Tag::String, Tag::Integer]),
+            Tags(vec![Tag::String, Tag::Float]),
+            Tags(vec![Tag::String, Tag::String]),
+            Tags(vec![Tag::String, Tag::Blob]),
+            Tags(vec![Tag::Blob, Tag::Integer]),
+            Tags(vec![Tag::Blob, Tag::Float]),
+            Tags(vec![Tag::Blob, Tag::String]),
+            Tags(vec![Tag::Blob, Tag::Blob]),
+            Tags(vec![Tag::Integer, Tag::Integer, Tag::Integer]),
+            Tags(vec![Tag::Integer, Tag::Integer, Tag::Integer, Tag::Integer]),
+            Tags(vec![
+                Tag::Integer,
+                Tag::Integer,
+                Tag::Integer,
+                Tag::Integer,
+                Tag::Integer,
+            ]),
+        ] {
+            assert_eq!(
+                Tags::decode(&mut original.clone().into_iter()),
+                Ok(original)
+            );
+        }
     }
 }

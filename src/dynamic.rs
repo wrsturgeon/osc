@@ -6,44 +6,111 @@
 
 //! OSC values whose types can't be known at compile time.
 
-use crate::{DynamicBlob, DynamicString, Float, Integer, Tag};
+use crate::{
+    Aligned4B, Batch, Batched, Decode, DynamicBlob, DynamicString, Float, Integer, Misaligned4B,
+    Tag, TagDecodeErr,
+};
 
 /// Unknown number of OSC type tags.
 #[repr(transparent)]
 #[allow(unused_qualifications)]
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Tags(alloc::vec::Vec<Tag>);
+pub struct Tags(pub(crate) alloc::vec::Vec<Tag>);
 
-/// Any possible error in decoding an unknown number of OSC type tags.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum TagDecodeErr {
-    /// Returned a null terminator then the rest of the 4-byte chunk was not null.
-    NullThenNonNull,
+impl IntoIterator for Tags {
+    type Item = u8;
+    type IntoIter = Batched<
+        core::iter::Chain<
+            core::iter::Chain<
+                core::iter::Once<u8>,
+                core::iter::Map<alloc::vec::IntoIter<Tag>, fn(Tag) -> u8>,
+            >,
+            core::iter::Once<u8>,
+        >,
+    >;
+    #[inline]
+    #[allow(clippy::as_conversions, clippy::as_underscore, trivial_casts)]
+    fn into_iter(self) -> Self::IntoIter {
+        core::iter::once(b',')
+            .chain(self.0.into_iter().map((|c: Tag| c as u8) as _))
+            .chain(core::iter::once(b'\0'))
+            .batch()
+    }
 }
 
-impl core::fmt::Display for TagDecodeErr {
+#[allow(unused_qualifications)]
+impl Decode for Tags {
+    type Error = TagDecodeErr;
     #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            &Self::NullThenNonNull => write!(
-                f,
-                "OSC address returned a null terminator, \
-                but then the rest of its 4-byte chunk was non-null."
-            ),
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        let mut v = alloc::vec![];
+        {
+            let first = Aligned4B::decode(iter)?;
+            if first.0 != b',' {
+                return Err(Misaligned4B::Other(TagDecodeErr::MissingComma(first.0)));
+            }
+            if first.1 == b'\0' {
+                if first.2 != b'\0' || first.3 != b'\0' {
+                    return Err(Misaligned4B::Other(TagDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(v));
+            }
+            v.push(first.1.try_into().map_err(Misaligned4B::Other)?);
+            if first.2 == b'\0' {
+                if first.3 != b'\0' {
+                    return Err(Misaligned4B::Other(TagDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(v));
+            }
+            v.push(first.2.try_into().map_err(Misaligned4B::Other)?);
+            if first.3 == b'\0' {
+                return Ok(Self(v));
+            }
+            v.push(first.3.try_into().map_err(Misaligned4B::Other)?);
+        }
+        loop {
+            let bytes = Aligned4B::decode(iter)?;
+            if bytes.0 == b'\0' {
+                if bytes.1 != b'\0' || bytes.2 != b'\0' || bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(TagDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(v));
+            }
+            v.push(bytes.0.try_into().map_err(Misaligned4B::Other)?);
+            if bytes.1 == b'\0' {
+                if bytes.2 != b'\0' || bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(TagDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(v));
+            }
+            v.push(bytes.1.try_into().map_err(Misaligned4B::Other)?);
+            if bytes.2 == b'\0' {
+                if bytes.3 != b'\0' {
+                    return Err(Misaligned4B::Other(TagDecodeErr::NullThenNonNull));
+                }
+                return Ok(Self(v));
+            }
+            v.push(bytes.2.try_into().map_err(Misaligned4B::Other)?);
+            if bytes.3 == b'\0' {
+                return Ok(Self(v));
+            }
+            v.push(bytes.3.try_into().map_err(Misaligned4B::Other)?);
         }
     }
 }
 
-// TODO:
-// #[allow(unused_qualifications)]
-// impl Decode for Tags {
-//     type Error = TagDecodeErr;
-//     #[inline]
-//     fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
-//         let mut first = Aligned4B::decode(iter)?;
-//         todo!()
-//     }
-// }
+#[cfg(feature = "quickcheck")]
+impl quickcheck::Arbitrary for Tags {
+    #[inline]
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(quickcheck::Arbitrary::arbitrary(g))
+    }
+    #[inline]
+    #[allow(unused_qualifications)]
+    fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+        alloc::boxed::Box::new(self.0.shrink().map(Self))
+    }
+}
 
 /// OSC values whose types can't be known at compile time.
 #[non_exhaustive]
@@ -123,44 +190,53 @@ pub enum DynamicDecodeErr {
     TypeTagErr(TagDecodeErr),
 }
 
-// impl core::fmt::Display for DynamicDecodeErr {
-//     #[inline(always)]
-//     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//         match self {}
-//     }
-// }
+impl core::fmt::Display for DynamicDecodeErr {
+    #[inline(always)]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            &DynamicDecodeErr::TypeTagErr(e) => write!(f, "{e}"),
+        }
+    }
+}
 
-// impl From<TagDecodeErr> for DynamicDecodeErr {
-//     #[inline]
-//     fn from(value: TagDecodeErr) -> Self {
-//         Self::TypeTagErr(value)
-//     }
-// }
+impl From<TagDecodeErr> for DynamicDecodeErr {
+    #[inline]
+    fn from(value: TagDecodeErr) -> Self {
+        Self::TypeTagErr(value)
+    }
+}
 
-// TODO:
-// #[allow(unused_qualifications)]
-// impl Decode for Dynamic {
-//     type Error = DynamicDecodeErr;
-//     #[inline]
-//     fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
-//         let types = match Tags::decode(iter) {
-//             Ok(ok) => ok,
-//             Err(Misaligned4B::End) => return Err(Misaligned4B::End),
-//             Err(Misaligned4B::Misaligned) => return Err(Misaligned4B::Misaligned),
-//             Err(Misaligned4B::Other(o)) => {
-//                 return Err(Misaligned4B::Other(DynamicDecodeErr::TypeTagErr(o)))
-//             }
-//         };
-//         let mut v = alloc::vec::Vec::with_capacity(types.0.len());
-//         for tag in types.0 {
-//             #[allow(unsafe_code, unused_unsafe)]
-//             v.push(match tag {
-//                 Tag::Integer => Data::Integer(unsafe { Integer::decode(iter).unwrap_unchecked() }),
-//             });
-//         }
-//         Ok(Self(v))
-//     }
-// }
+#[allow(unused_qualifications)]
+impl Decode for Dynamic {
+    type Error = DynamicDecodeErr;
+    #[inline]
+    fn decode<I: Iterator<Item = u8>>(iter: &mut I) -> Result<Self, Misaligned4B<Self::Error>> {
+        let types = match Tags::decode(iter) {
+            Ok(ok) => ok,
+            Err(Misaligned4B::End) => return Err(Misaligned4B::End),
+            Err(Misaligned4B::Misaligned) => return Err(Misaligned4B::Misaligned),
+            Err(Misaligned4B::Other(o)) => {
+                return Err(Misaligned4B::Other(DynamicDecodeErr::TypeTagErr(o)))
+            }
+        };
+        let mut v = alloc::vec::Vec::with_capacity(types.0.len());
+        for tag in types.0 {
+            #[allow(unsafe_code, unused_unsafe)]
+            // TODO:
+            // SAFETY:
+            // Uncertain. Revisit after property testing.
+            v.push(unsafe {
+                match tag {
+                    Tag::Integer => Data::Integer(Integer::decode(iter).unwrap_unchecked()),
+                    Tag::Float => Data::Float(Float::decode(iter).unwrap_unchecked()),
+                    Tag::String => Data::String(DynamicString::decode(iter).unwrap_unchecked()),
+                    Tag::Blob => Data::Blob(DynamicBlob::decode(iter).unwrap_unchecked()),
+                }
+            });
+        }
+        Ok(Self(v))
+    }
+}
 
 #[cfg(feature = "quickcheck")]
 #[allow(unused_qualifications)]

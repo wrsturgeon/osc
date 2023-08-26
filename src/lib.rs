@@ -73,6 +73,7 @@
     clippy::question_mark_used,
     clippy::redundant_pub_crate,
     clippy::ref_patterns,
+    clippy::semicolon_outside_block,
     clippy::separated_literal_suffix,
     clippy::single_char_lifetime_names,
     clippy::string_add,
@@ -102,7 +103,7 @@ pub use {
     decode::{Aligned4B, Decode, Misaligned4B},
     into_osc::IntoOsc,
     message::Message,
-    tag::Tag,
+    tag::{Tag, TagDecodeErr},
     tuple::Tuple,
 };
 
