@@ -60,7 +60,6 @@ pub enum Tag {
 impl TryFrom<u8> for Tag {
     type Error = TagDecodeErr;
     #[inline(always)]
-    #[allow(unused_variables)] // TODO: remove
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Ok(match value {
             b'i' => Self::Integer,

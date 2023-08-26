@@ -271,3 +271,16 @@ impl quickcheck::Arbitrary for Data {
         }
     }
 }
+
+#[cfg(feature = "quickcheck")]
+#[allow(unused_qualifications)]
+impl quickcheck::Arbitrary for Dynamic {
+    #[inline]
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(quickcheck::Arbitrary::arbitrary(g))
+    }
+    #[inline]
+    fn shrink(&self) -> alloc::boxed::Box<dyn Iterator<Item = Self>> {
+        alloc::boxed::Box::new(self.0.shrink().map(Self))
+    }
+}

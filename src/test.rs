@@ -152,13 +152,10 @@ mod prop {
             decoded == Ok(original)
         }
 
-        #[allow(clippy::needless_collect)]
         fn address_roundtrip_bytes(original: Vec<u8>) -> bool {
             for _ in 0..(1 << 16) {
                 let Ok(decoded) = Address::decode(&mut original.iter().copied()) else { continue; };
-                let recoded: Vec<_> = decoded.into_iter().collect();
-                // println!("{original:#?} --> {recoded:#?}");
-                for (a, b) in recoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
+                for (a, b) in decoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
             }
             true
         }
@@ -180,8 +177,24 @@ mod prop {
             decoded == Ok(original)
         }
 
+        fn byte_tags_roundtrip(original: Vec<u8>) -> bool {
+            for _ in 0..(1 << 16) {
+                let Ok(decoded) = Tags::decode(&mut original.iter().copied()) else { continue; };
+                for (a, b) in decoded.into_iter().zip(original.iter().copied()) { if a != b { return false; } }
+            }
+            true
+        }
+
+        // TODO: all below
+
         // fn data_roundtrip(original: Data) -> bool {
         //     let decoded = Data::decode(&mut original.clone().into_iter());
+        //     println!("{original:#?} --> {decoded:#?}");
+        //     decoded == Ok(original)
+        // }
+
+        // fn message_roundtrip(original: Message) -> bool {
+        //     let decoded = Message::decode(&mut original.clone().into_iter());
         //     println!("{original:#?} --> {decoded:#?}");
         //     decoded == Ok(original)
         // }

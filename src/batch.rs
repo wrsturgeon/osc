@@ -21,7 +21,6 @@ struct Cache {
 impl Default for Cache {
     #[inline(always)]
     #[allow(unsafe_code)]
-    #[allow(invalid_value)] // <-- FIXME
     fn default() -> Self {
         Self {
             buffer: MaybeUninit::uninit(),
